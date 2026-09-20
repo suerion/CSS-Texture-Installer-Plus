@@ -58,30 +58,40 @@ module.exports = {
     },
 
 
-    initialize: () => {
-        return new Promise(function (resolve, reject) {
-            let process
+    initialize: async () => {
+        const runInitialization = () => {
+            return new Promise(function (resolve, reject) {
+                let process
 
-            try {
-                process = pty.spawn(appDirectory + '/steam/steamcmd.exe', ['+quit'], {
-                    cwd: appDirectory + '/steam/'
-                })
-            } catch (err) {
-                reject(err)
-                return
-            }
-
-            process.on('exit', (event) => {
-                const exitCode = typeof event === 'number' ? event : event && event.exitCode
-
-                if (exitCode !== undefined && exitCode !== 0) {
-                    reject(new Error(`SteamCMD initialization exited with code ${exitCode}.`))
+                try {
+                    process = pty.spawn(appDirectory + '/steam/steamcmd.exe', ['+quit'], {
+                        cwd: appDirectory + '/steam/'
+                    })
+                } catch (err) {
+                    reject(err)
                     return
                 }
 
-                resolve()
+                process.on('exit', (event) => {
+                    const exitCode = typeof event === 'number' ? event : event && event.exitCode
+                    resolve(exitCode === undefined ? 0 : exitCode)
+                })
             })
-        })
+        }
+
+        const maxAttempts = 3
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            const exitCode = await runInitialization()
+            if (exitCode === 0) return
+
+            if (attempt < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 3000))
+                continue
+            }
+
+            throw new Error(`SteamCMD initialization failed after ${maxAttempts} attempts (last exit code ${exitCode}).`)
+        }
     },
 
     download: (appID, installPath, callback) => {
