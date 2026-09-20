@@ -1,12 +1,12 @@
 {
   "name": "css-texture-installer-plus",
   "version": "1.5.0",
-  "description": "An easy to use, straight forward Counter Strike: Source texture installer for Garry's Mod.",
+  "description": "A Garry's Mod content installer that downloads and mounts Valve game content through SteamCMD.",
   "main": "main.js",
   "scripts": {
     "start": "node main.js",
-    "build": "node prebuild.js && npx @yao-pkg/pkg -t node22-win-x64 main.js --config package.json -o bin/cssti+.exe && node postbuild.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "node prebuild.js && npx @yao-pkg/pkg -t node22-win-x64 main.js --config package.json -o bin/gmod-content-installer-plus.exe && node postbuild.js",
+    "test": "node --check main.js && node --check util/steamcmd.js && node --check util/mount-config.js && node --check util/content-packs.js && node test/mount-config.test.js"
   },
   "author": "zulc22",
   "license": "GPL-3.0-or-later",
