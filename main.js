@@ -116,19 +116,11 @@
 		const installPath = path.join(contentRoot, pack.installDir)
 		const gamePath = path.join(installPath, pack.gameDir)
 
-		if (fs.existsSync(installPath)) {
-			progress.start(`Removing old temporary ${pack.name} download...`)
-			fs.removeSync(installPath)
-			progress.succeed(`Removed old temporary ${pack.name} download.`)
-		}
+		fs.ensureDirSync(contentRoot)
 
 		progress.start(`Preparing ${pack.name} files... this may take a while.`)
 
-		await steamcmd.download(pack.appId, [
-			'login anonymous',
-			`force_install_dir ../${pack.installDir}`,
-			'app_update {{app_id}} -validate'
-		], (data) => {
+		await steamcmd.download(pack.appId, installPath, (data) => {
 			const percent = Math.ceil(data.progress)
 			if (data.code === '0x3') progress.update(`Preparing ${pack.name}: ${percent}%`)
 			if (data.code === '0x5') progress.update(`Validating ${pack.name}: ${percent}%`)
@@ -136,50 +128,17 @@
 			if (data.code === '0x101') progress.update(`Committing ${pack.name}: ${percent}%`)
 		})
 
-		progress.succeed(`Downloaded ${pack.name} files.`)
-
-		if (fs.existsSync(targetPath)) {
-			progress.start(`Replacing existing ${pack.targetDir} addon...`)
-			fs.removeSync(targetPath)
-			progress.succeed(`Removed existing ${pack.targetDir} addon.`)
-		}
-		fs.ensureDirSync(targetPath)
-
-		for (const vpk of pack.vpks) {
-			const vpkPath = path.join(gamePath, vpk)
-			if (!fs.existsSync(vpkPath)) {
-				throw new Error(`Required VPK is missing for ${pack.name}: ${vpk}`)
-			}
-
-			progress.start(`Extracting ${pack.name}: ${vpk}`)
-			await steamcmd.extract(vpkPath, vpkExecutable, (data) => {
-				progress.update(`Extracting ${pack.name}: ${data.file}`)
-			})
-			progress.succeed(`Extracted ${vpk}`)
-
-			const extractedPath = path.join(gamePath, path.basename(vpk, '.vpk'))
-			if (fs.existsSync(extractedPath)) {
-				progress.start(`Merging extracted ${pack.name} content...`)
-				fs.copySync(extractedPath, targetPath, { overwrite: true })
-				progress.succeed(`Merged ${vpk} content.`)
-			}
+		if (!fs.existsSync(gamePath)) {
+			throw new Error(`Downloaded ${pack.name}, but game directory was not found: ${gamePath}`)
 		}
 
-		for (const looseDir of pack.looseDirs || []) {
-			const source = path.join(gamePath, looseDir)
-			const destination = path.join(targetPath, looseDir)
+		progress.succeed(`Downloaded and validated ${pack.name} files.`)
 
-			progress.start(`Copying ${pack.name} ${looseDir}...`)
-			if (copyDirectoryIfPresent(source, destination)) {
-				progress.succeed(`Copied ${pack.name} ${looseDir}.`)
-			} else {
-				progress.succeed(`No loose ${looseDir} directory found for ${pack.name}; skipped.`)
-			}
+		return {
+			key: pack.mountKey,
+			path: gamePath,
+			name: pack.name
 		}
-
-		progress.start(`Cleaning up temporary ${pack.name} files...`)
-		if (fs.existsSync(installPath)) fs.removeSync(installPath)
-		progress.succeed(`${pack.name} installed to ${targetPath}`)
 	}
 
 	figlet.parseFont('Slant2', fs.readFileSync(path.join(__dirname, 'assets', 'Slant.flf'), 'utf8'))
@@ -212,9 +171,14 @@
 
 		await ensureSteamCmd()
 
+		const mounts = []
 		for (const pack of selectedPacks) {
-			await installPack(pack, gmodPath)
+			mounts.push(await installPack(pack, gmodPath))
 		}
+
+		progress.start('Updating Garry\'s Mod mount.cfg...')
+		const mountResult = mountConfig.updateMountCfg(gmodPath, mounts)
+		progress.succeed(`Updated mount configuration: ${mountResult.mountCfgPath}`)
 
 		progress.start('Final cleanup...')
 		const steamTemp = path.join(appDirectory, 'steam')
