@@ -177,7 +177,7 @@
 	}
 
 	figlet.parseFont('Slant2', fs.readFileSync(path.join(__dirname, 'assets', 'Slant.flf'), 'utf8'))
-	console.log(chalk.green(figlet.textSync('CSSTI+', {
+	console.log(chalk.green(figlet.textSync('GMCI+', {
 		font: 'Slant2',
 		horizontalLayout: 'fitted',
 		verticalLayout: 'fitted'
