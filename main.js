@@ -1,5 +1,6 @@
 (async () => {
 	const steamcmd = require('./util/steamcmd')
+	const contentPacks = require('./util/content-packs')
 	const reg = require('native-reg')
 	const progress = require('./util/progress')
 	const fs = require('fs-extra')
@@ -8,6 +9,7 @@
 	const chalk = require('chalk')
 	const vdf_parser = require('vdf-parser')
 	const appDirectory = require('path').dirname(process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])).replace(/\\/g, '/')
+	const pack = contentPacks.css
 	let i;
 
 	figlet.parseFont('Slant2', fs.readFileSync(__dirname + '/assets/Slant.flf', 'utf8'))
@@ -89,9 +91,9 @@
 	} else {
 		progress.succeed(`Steamcmd.exe found: ${appDirectory + '/steam/steamcmd.exe'}`)
 	}
-	if (fs.existsSync(appDirectory + '/cssource')) {
+	if (fs.existsSync(appDirectory + '/' + pack.installDir)) {
 		progress.start(`Found cssource folder. This most likely may have been generated from past usage of the program, and as such is being automatically removed.`)
-		fs.removeSync(appDirectory + '/cssource')
+		fs.removeSync(appDirectory + '/' + pack.installDir)
 		progress.succeed(`Cssource folder removed.`)
 	}
 	enquirer.prompt({
@@ -105,9 +107,9 @@
 
 		i = await (async () => {
 			return new Promise(async (resolve, reject) => {
-				steamcmd.download('232330', [
+				steamcmd.download(pack.appId, [
 					'login anonymous',
-					'force_install_dir ../cssource',
+					`force_install_dir ../${pack.installDir}`,
 					'app_update {{app_id}} -validate'
 				], (dat) => {
 					if (dat.code === '0x3') {
@@ -135,7 +137,7 @@
 		i = await (async () => {
 			return new Promise(async (resolve, reject) => {
 				progress.start('Extracting Counter-Strike Source dedicated server files...')
-				steamcmd.extract(appDirectory + '/cssource/cstrike/cstrike_pak_dir.vpk', (dat) => {
+				steamcmd.extract(appDirectory + '/' + pack.installDir + '/' + pack.gameDir + '/' + pack.vpks[0], (dat) => {
 					progress.update(`Extracting Counter-Strike Source dedicated server files: ${dat.file}`)
 				}).then(() => {
 					progress.succeed(`Extracted Counter-Strike Source dedicated server files.`)
@@ -147,23 +149,23 @@
 		})()
 		if (typeof i !== 'boolean') return progress.fail(`Error: ${i}.\nAutomatically closing window in 10 seconds.`, 10000)
 		progress.start('Moving Counter-Strike Source textures into Garry\'s Mod... The console may freeze, this is normal.')
-		if (fs.existsSync(`${gmodIPath}/addons/css_content`)) {
+		if (fs.existsSync(`${gmodIPath}/addons/${pack.targetDir}`)) {
 			progress.update('Deleting old css_content folder...')
-			fs.removeSync(`${gmodIPath}/addons/css_content`)
+			fs.removeSync(`${gmodIPath}/addons/${pack.targetDir}`)
 		}
-		fs.ensureDirSync(`${gmodIPath}/addons/css_content`)
+		fs.ensureDirSync(`${gmodIPath}/addons/${pack.targetDir}`)
 		const copySet = ['materials', 'models', 'particles', 'sound', 'resource', 'maps']
 		for (let folder of copySet) {
-			progress.update(`Moving ${folder} into ${gmodIPath}/addons/css_content/${folder}`)
-			fs.moveSync(`${appDirectory}/cssource/cstrike/cstrike_pak_dir/${folder}`, `${gmodIPath}/addons/css_content/${folder}`)
+			progress.update(`Moving ${folder} into ${gmodIPath}/addons/${pack.targetDir}/${folder}`)
+			fs.moveSync(`${appDirectory}/${pack.installDir}/${pack.gameDir}/cstrike_pak_dir/${folder}`, `${gmodIPath}/addons/${pack.targetDir}/${folder}`)
 		}
-		progress.succeed(`Successfully moved ${copySet} from ${appDirectory}/cssource/cstrike/cstrike_pak_dir/ to ${gmodIPath}/addons/css_content/`)
+		progress.succeed(`Successfully moved ${copySet} from ${appDirectory}/cssource/cstrike/cstrike_pak_dir/ to ${gmodIPath}/addons/${pack.targetDir}/`)
 		progress.start('Cleaning up...')
-		const removeSet = ['cssource', 'steam']
+		const removeSet = [pack.installDir, 'steam']
 		for (let folder of removeSet) {
 			if (fs.existsSync(`${appDirectory}/${folder}`)) fs.removeSync(`${appDirectory}/${folder}`)
 		}
-		progress.succeed(`The Counter-Strike Source textures have been successfully installed into Garry's Mod.\nInstallation path: ${gmodIPath}/addons/css_content`)
+		progress.succeed(`The Counter-Strike Source textures have been successfully installed into Garry's Mod.\nInstallation path: ${gmodIPath}/addons/${pack.targetDir}`)
 		progress.log('You may now close this console window.')
 	})
 })()
