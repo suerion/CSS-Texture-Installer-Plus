@@ -25,13 +25,17 @@ Each content pack can be selected independently when the installer starts.
    `GarrysMod/garrysmod/content_mounts/`
 6. The installer updates:
    `GarrysMod/garrysmod/cfg/mount.cfg`
-7. Garry's Mod mounts the original game directory, including VPK files, maps, materials, models, sounds and other game resources.
+7. It also enables the selected depots in:
+   `GarrysMod/garrysmod/cfg/mountdepots.txt`
+8. Garry's Mod mounts the original game directory, including VPK files, maps, materials, models, sounds and other game resources.
 
-The installer creates a one-time backup of an existing `mount.cfg` as:
+The installer creates one-time backups before changing existing configuration files:
 
 `mount.cfg.cssti-backup`
 
-Existing unrelated mount entries are preserved.
+`mountdepots.txt.cssti-backup`
+
+Existing unrelated mount and depot entries are preserved.
 
 ## Building
 
