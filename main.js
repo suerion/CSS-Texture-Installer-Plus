@@ -9,6 +9,7 @@
 	const chalk = require('chalk')
 	const vdfParser = require('vdf-parser')
 	const mountConfig = require('./util/mount-config')
+	const mountDepots = require('./util/mount-depots')
 	const path = require('path')
 
 	const appDirectory = path.dirname(
@@ -198,6 +199,10 @@
 		progress.start('Updating Garry\'s Mod mount.cfg...')
 		const mountResult = mountConfig.updateMountCfg(gmodPath, mounts)
 		progress.succeed(`Updated mount configuration: ${mountResult.mountCfgPath}`)
+
+		progress.start('Updating Garry\'s Mod mountdepots.txt...')
+		const depotResult = mountDepots.updateMountDepots(gmodPath, mounts)
+		progress.succeed(`Updated depot configuration: ${depotResult.depotsPath}`)
 
 		progress.start('Final cleanup...')
 		const steamTemp = path.join(appDirectory, 'steam')
