@@ -119,10 +119,8 @@ module.exports = {
         })
     },
 
-    extract: (file, callback) => {
+    extract: (file, vpkExecutable, callback) => {
         return new Promise(function (resolve, reject) {
-            const vpkExecutable = appDirectory + '/cssource/bin/vpk.exe'
-
             if (!fs.existsSync(vpkExecutable)) {
                 reject(new Error(`VPK tool could not be found: ${vpkExecutable}`))
                 return
