@@ -60,8 +60,8 @@ module.exports = {
     download: (appID, installPath, callback) => {
         return new Promise(function (resolve, reject) {
             const args = [
-                '+login', 'anonymous',
                 '+force_install_dir', installPath,
+                '+login', 'anonymous',
                 '+app_update', appID, '-validate',
                 '+quit'
             ]
