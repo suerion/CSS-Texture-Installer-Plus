@@ -10,7 +10,9 @@ module.exports = {
     vpks: [
       'cstrike_pak_dir.vpk'
     ],
-    extractedDir: 'cstrike_pak_dir'
+    looseDirs: [
+      'maps'
+    ]
   },
   tf2: {
     id: 'tf2',
@@ -25,6 +27,9 @@ module.exports = {
       'tf2_textures_dir.vpk',
       'tf2_sound_misc_dir.vpk',
       'tf2_sound_vo_english_dir.vpk'
+    ],
+    looseDirs: [
+      'maps'
     ]
   }
 }
