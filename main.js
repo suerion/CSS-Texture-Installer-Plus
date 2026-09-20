@@ -154,6 +154,7 @@
 			if (data.code === '0x5') progress.update(`Validating ${pack.name}: ${percent}%`)
 			if (data.code === '0x61') progress.update(`Downloading ${pack.name}: ${percent}%`)
 			if (data.code === '0x101') progress.update(`Committing ${pack.name}: ${percent}%`)
+			if (data.code === 'retry') progress.update(`SteamCMD cache initialized, retrying ${pack.name} download (attempt ${data.attempt}/3)...`)
 		})
 
 		validateGameContent(pack, gamePath)
