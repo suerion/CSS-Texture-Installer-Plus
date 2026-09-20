@@ -66,6 +66,9 @@
 
 		if (fs.existsSync(steamCmdPath)) {
 			progress.succeed(`Steamcmd.exe found: ${steamCmdPath}`)
+			progress.start('Initializing steamcmd...')
+			await steamcmd.initialize()
+			progress.succeed('Steamcmd initialized.')
 			return
 		}
 
@@ -87,6 +90,10 @@
 
 		if (fs.existsSync(result.path)) fs.unlinkSync(result.path)
 		progress.succeed(`Steamcmd.exe downloaded and extracted: ${steamCmdPath}`)
+
+		progress.start('Initializing steamcmd...')
+		await steamcmd.initialize()
+		progress.succeed('Steamcmd initialized.')
 	}
 
 	const selectPacks = async () => {
