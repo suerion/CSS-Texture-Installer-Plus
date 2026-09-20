@@ -137,7 +137,7 @@
 		i = await (async () => {
 			return new Promise(async (resolve, reject) => {
 				progress.start('Extracting Counter-Strike Source dedicated server files...')
-				steamcmd.extract(appDirectory + '/' + pack.installDir + '/' + pack.gameDir + '/' + pack.vpks[0], (dat) => {
+				steamcmd.extract(appDirectory + '/' + pack.installDir + '/' + pack.gameDir + '/' + pack.vpks[0], appDirectory + '/' + pack.installDir + '/' + pack.vpkTool, (dat) => {
 					progress.update(`Extracting Counter-Strike Source dedicated server files: ${dat.file}`)
 				}).then(() => {
 					progress.succeed(`Extracted Counter-Strike Source dedicated server files.`)
