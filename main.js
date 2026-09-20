@@ -8,6 +8,7 @@
 	const figlet = require('figlet')
 	const chalk = require('chalk')
 	const vdfParser = require('vdf-parser')
+	const mountConfig = require('./util/mount-config')
 	const path = require('path')
 
 	const appDirectory = path.dirname(
@@ -110,18 +111,10 @@
 		return selected
 	}
 
-	const copyDirectoryIfPresent = (source, destination) => {
-		if (!fs.existsSync(source)) return false
-		fs.ensureDirSync(destination)
-		fs.copySync(source, destination, { overwrite: true })
-		return true
-	}
-
 	const installPack = async (pack, gmodPath) => {
-		const installPath = path.join(appDirectory, pack.installDir)
+		const contentRoot = path.join(gmodPath, 'garrysmod', 'content_mounts')
+		const installPath = path.join(contentRoot, pack.installDir)
 		const gamePath = path.join(installPath, pack.gameDir)
-		const targetPath = path.join(gmodPath, 'addons', pack.targetDir)
-		const vpkExecutable = path.join(installPath, pack.vpkTool)
 
 		if (fs.existsSync(installPath)) {
 			progress.start(`Removing old temporary ${pack.name} download...`)
