@@ -113,7 +113,7 @@
 			const answer = await enquirer.prompt({
 				type: 'confirm',
 				name: 'install',
-				message: `Install ${pack.name} content?`,
+				message: `Install ${pack.name} content? (~${pack.approximateDownloadSize} download / ~${pack.approximateDiskSize} disk)`,
 				initial: pack.id === 'css'
 			})
 
