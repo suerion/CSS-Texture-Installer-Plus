@@ -8,7 +8,8 @@ module.exports = {
     targetDir: 'css_content',
     vpks: [
       'cstrike_pak_dir.vpk'
-    ]
+    ],
+    extractedDir: 'cstrike_pak_dir'
   },
   tf2: {
     id: 'tf2',
