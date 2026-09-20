@@ -121,40 +121,4 @@ module.exports = {
             })
         })
     },
-
-    extract: (file, vpkExecutable, callback) => {
-        return new Promise(function (resolve, reject) {
-            if (!fs.existsSync(vpkExecutable)) {
-                reject(new Error(`VPK tool could not be found: ${vpkExecutable}`))
-                return
-            }
-
-            let process
-
-            try {
-                process = pty.spawn(vpkExecutable, [file])
-            } catch (err) {
-                reject(err)
-                return
-            }
-
-            process.on('data', (output) => {
-                const fileName = output.substr(output.indexOf(' ') + 1)
-                callback({
-                    file: fileName
-                })
-            })
-
-            process.on('exit', (event) => {
-                const exitCode = typeof event === 'number' ? event : event && event.exitCode
-
-                if (exitCode !== undefined && exitCode !== 0) {
-                    reject(new Error(`vpk.exe exited with code ${exitCode}.`))
-                    return
-                }
-
-                resolve(true)
-            })
-        })
-    }
 }
