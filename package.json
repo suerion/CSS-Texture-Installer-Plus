@@ -1,6 +1,6 @@
 {
   "name": "css-texture-installer-plus",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "An easy to use, straight forward Counter Strike: Source texture installer for Garry's Mod.",
   "main": "main.js",
   "scripts": {
