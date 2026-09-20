@@ -17,8 +17,8 @@
 
 	const findSteamPath = () => {
 		const steamSearchLocations = [
-			'SOFTWARE\\\\Valve\\\\Steam',
-			'SOFTWARE\\\\WOW6432Node\\\\Valve\\\\Steam'
+			'SOFTWARE\\Valve\\Steam',
+			'SOFTWARE\\WOW6432Node\\Valve\\Steam'
 		]
 
 		for (const location of steamSearchLocations) {
