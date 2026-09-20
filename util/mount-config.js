@@ -3,6 +3,25 @@ const path = require('path')
 
 const toMountPath = (value) => value.replace(/\\/g, '/')
 
+const findMountBlockClosingBrace = (content) => {
+  const lines = content.split(/\r?\n/)
+  const mountCfgLine = lines.findIndex(line => line.trim() === '"mountcfg"')
+  if (mountCfgLine === -1) return -1
+
+  const openingBraceLine = lines.findIndex((line, index) => index > mountCfgLine && line.trim() === '{')
+  if (openingBraceLine === -1) return -1
+
+  const closingBraceLine = lines.findIndex((line, index) => index > openingBraceLine && line.trim() === '}')
+  if (closingBraceLine === -1) return -1
+
+  let offset = 0
+  for (let i = 0; i < closingBraceLine; i++) {
+    offset += lines[i].length + 1
+  }
+
+  return offset
+}
+
 const updateMountCfg = (gmodPath, mounts) => {
   const cfgDir = path.join(gmodPath, 'garrysmod', 'cfg')
   const mountCfgPath = path.join(cfgDir, 'mount.cfg')
@@ -32,7 +51,7 @@ const updateMountCfg = (gmodPath, mounts) => {
       continue
     }
 
-    const closingBrace = content.lastIndexOf('}')
+    const closingBrace = findMountBlockClosingBrace(content)
     if (closingBrace === -1) {
       content = '"mountcfg"\n{\n' + line + '\n}\n'
     } else {
