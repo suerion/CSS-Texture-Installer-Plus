@@ -15,6 +15,8 @@ for (const pack of values) {
   assert(pack.installDir)
   assert(pack.gameDir)
   assert(pack.mountKey)
+  assert(pack.approximateDiskSize)
+  assert(pack.approximateDownloadSize)
 
   assert(!ids.has(pack.id), 'Duplicate content pack id: ' + pack.id)
   assert(!mountKeys.has(pack.mountKey), 'Duplicate mount key: ' + pack.mountKey)
