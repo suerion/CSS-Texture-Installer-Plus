@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node main.js",
     "build": "node prebuild.js && npx --no-install @yao-pkg/pkg -t node22-win-x64 main.js --config package.json -o bin/gmod-content-installer-plus.exe && node postbuild.js",
-    "test": "node --check main.js && node --check util/steamcmd.js && node --check util/mount-config.js && node --check util/content-packs.js && node test/mount-config.test.js && node test/content-packs.test.js"
+    "test": "node --check main.js && node --check util/steamcmd.js && node --check util/mount-config.js && node --check util/mount-depots.js && node --check util/content-packs.js && node test/mount-config.test.js && node test/mount-depots.test.js && node test/content-packs.test.js"
   },
   "author": "zulc22",
   "license": "GPL-3.0-or-later",
