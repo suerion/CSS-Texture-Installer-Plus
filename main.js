@@ -181,7 +181,7 @@
 		font: 'Slant2',
 		horizontalLayout: 'fitted',
 		verticalLayout: 'fitted'
-	}) + chalk.blueBright('v1.5.0 AI-generated development')))
+	}) + chalk.blueBright('v1.5.0 AI-generated release')))
 
 	console.log(chalk.magenta(`A utility for installing Valve game content into Garry's Mod ${chalk.blue('directly through SteamCMD')}.`))
 	console.log(chalk.hex('#7289DA')('Issues: https://github.com/suerion/CSS-Texture-Installer-Plus/issues'))
@@ -201,7 +201,9 @@
 		const selectedPacks = await selectPacks()
 		if (selectedPacks.length === 0) {
 			progress.start('No content packs selected.')
-			return progress.fail('Nothing to install.\nAutomatically closing window in 10 seconds.', 10000)
+			progress.fail('Nothing to install.')
+			await waitForEnter('Press Enter to close...')
+			return
 		}
 
 		const existingPacks = []
