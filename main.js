@@ -21,13 +21,13 @@
 	progress.start('Verifying steam directory...')
 
 	let steamIPath = await (async () => {
-		steam_search_locations = [
+		const steam_search_locations = [
 			"SOFTWARE\\Valve\\Steam",
 			"SOFTWARE\\WOW6432Node\\Valve\\Steam"
 		];
 		for (const loc of steam_search_locations) {
 			try {
-				steamkey = reg.openKey(reg.HKCU, loc, reg.Access.READ);
+				let steamkey = reg.openKey(reg.HKCU, loc, reg.Access.READ);
 				if (!steamkey) steamkey = reg.openKey(reg.HKLM, loc, reg.Access.READ);
 				if (!steamkey) continue;
 				return reg.getValue(steamkey, null, 'SteamPath');
@@ -49,7 +49,7 @@
 			} else if (fs.existsSync(steamIPath + "/steamapps/libraryfolders.vdf")) {
 				var libraryfolders_vdf = vdf_parser.parse(fs.readFileSync(steamIPath + "/steamapps/libraryfolders.vdf").toString())
 				if ("libraryfolders" in libraryfolders_vdf) {
-					for (e in libraryfolders_vdf["libraryfolders"]) {
+					for (const e in libraryfolders_vdf["libraryfolders"]) {
 						var _e = libraryfolders_vdf["libraryfolders"][e]
 						if ("4000" in _e["apps"]) {
 							resolve(_e["path"].replace("\\\\", "/") + "/steamapps/common/GarrysMod")
@@ -120,7 +120,7 @@
 						return progress.update(`Downloading Counter-Strike Source dedicated server files: ${Math.ceil(dat.progress)}%`)
 					}
 					if (dat.code === '0x101') {
-						return progress.update(`Commiting Counter-Strike Source dedicated server files: ${Math.ceil(dat.progress)}%`)
+						return progress.update(`Committing Counter-Strike Source dedicated server files: ${Math.ceil(dat.progress)}%`)
 					}
 					// return progress.update('Error: unexpected code. Perhaps try rerunning the program.\nAutomatically closing window in 10 seconds.', 10000)
 				}).then(() => {
