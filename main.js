@@ -123,29 +123,34 @@
 		return selected
 	}
 
-	const validateGameContent = (pack, gamePath) => {
-		if (!fs.existsSync(gamePath)) {
-			throw new Error(`Downloaded ${pack.name}, but game directory was not found: ${gamePath}`)
-		}
+	const hasValidGameContent = (gamePath) => {
+		if (!fs.existsSync(gamePath)) return false
 
 		const entries = fs.readdirSync(gamePath)
-		if (entries.length === 0) {
-			throw new Error(`Downloaded ${pack.name}, but the game directory is empty: ${gamePath}`)
-		}
+		if (entries.length === 0) return false
 
 		const hasVpk = entries.some(entry => entry.toLowerCase().endsWith('.vpk'))
 		const mapsPath = path.join(gamePath, 'maps')
 		const hasMaps = fs.existsSync(mapsPath) && fs.readdirSync(mapsPath).some(entry => entry.toLowerCase().endsWith('.bsp'))
 
-		if (!hasVpk && !hasMaps) {
-			throw new Error(`Downloaded ${pack.name}, but no VPK files or BSP maps were found in ${gamePath}`)
+		return hasVpk || hasMaps
+	}
+
+	const validateGameContent = (pack, gamePath) => {
+		if (!hasValidGameContent(gamePath)) {
+			throw new Error(`Downloaded ${pack.name}, but no valid VPK files or BSP maps were found in ${gamePath}`)
 		}
 	}
 
-	const installPack = async (pack, gmodPath) => {
+	const getPackPaths = (pack, gmodPath) => {
 		const contentRoot = path.join(gmodPath, 'garrysmod', 'content_mounts')
 		const installPath = path.join(contentRoot, pack.installDir)
 		const gamePath = path.join(installPath, pack.gameDir)
+		return { contentRoot, installPath, gamePath }
+	}
+
+	const installPack = async (pack, gmodPath) => {
+		const { contentRoot, installPath, gamePath } = getPackPaths(pack, gmodPath)
 
 		fs.ensureDirSync(contentRoot)
 
@@ -199,10 +204,34 @@
 			return progress.fail('Nothing to install.\nAutomatically closing window in 10 seconds.', 10000)
 		}
 
-		await ensureSteamCmd()
+		const existingPacks = []
+		const packsToInstall = []
 
-		const mounts = []
 		for (const pack of selectedPacks) {
+			const { gamePath } = getPackPaths(pack, gmodPath)
+			if (hasValidGameContent(gamePath)) {
+				existingPacks.push({ pack, gamePath })
+			} else {
+				packsToInstall.push(pack)
+			}
+		}
+
+		for (const { pack, gamePath } of existingPacks) {
+			progress.start(`Checking existing ${pack.name} content...`)
+			progress.succeed(`Existing ${pack.name} content found and validated: ${gamePath}`)
+		}
+
+		if (packsToInstall.length > 0) {
+			await ensureSteamCmd()
+		}
+
+		const mounts = existingPacks.map(({ pack, gamePath }) => ({
+			key: pack.mountKey,
+			path: gamePath,
+			name: pack.name
+		}))
+
+		for (const pack of packsToInstall) {
 			mounts.push(await installPack(pack, gmodPath))
 		}
 
