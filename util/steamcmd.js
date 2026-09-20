@@ -5,95 +5,181 @@ const axios = require('axios')
 const appDirectory = require('path').dirname(process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])).replace(/\\/g, '/')
 
 module.exports = {
-    installToPath: (path, callback) => {
-        return new Promise(async function (resolve) {
-			let chunks = 0
-            const c = await axios({
-                url: 'https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip',
-                method: 'GET',
-                responseType: 'stream'
-			})
-			const length = c.headers['content-length']
-            const writer = fs.createWriteStream(path)
-			c.data.on('data', (chunk) => {
-				chunks += chunk.length
-				callback({
-                    type: 'download',
-                    percent: Math.ceil(chunks / length * 100),
-					chunks: chunks
-				})
-            })
-            c.data.pipe(writer)
+    installToPath: async (path, callback) => {
+        let chunks = 0
 
-            writer.on('finish', () => {
-                seven.extractFull(path, `${appDirectory}/steam`, {
-                        $bin: appDirectory + '/7za.exe',
-                        $progress: true
-                    }).on('progress', (dat) => {
-                        callback({
-                            type: 'unzip',
-                            percent: Math.ceil(dat.percent),
-                            files: dat.fileCount
-                        })
-                    })
-                    .on('end', () => {
-                        resolve({
-                            path,
-                            success: true
-                        })
-
-                    })
-            })
-            writer.on('error', () => {
-                resolve(false)
-            })
-
+        const response = await axios({
+            url: 'https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip',
+            method: 'GET',
+            responseType: 'stream',
+            timeout: 30000,
+            validateStatus: status => status >= 200 && status < 300
         })
 
-    },
-    download: (appID, cmds, callback) => {
-        return new Promise(function (resolve) {
-            //Splits args into steamcmd valid ones
-            var args = cmds.concat('quit').map(function (x) {
-                return '+' + x
-            }).join(' ').replace('{{app_id}}', appID).split(' ')
+        const length = Number(response.headers['content-length']) || 0
+        const writer = fs.createWriteStream(path)
 
-            const c = pty.spawn(appDirectory + '/steam/steamcmd.exe', args, {
-                cwd: appDirectory + '/steam/'
-            })
-            c.on('data', (dat) => {
-                if (dat.includes('Update state')) {
-                    dat = dat.match(/\(([^)]+)\)/g)
-                    dat[0] = dat[0].replace(/[()]/g, '')
-                    dat[1] = dat[1].replace(/[()" "]/g, '').split('/').map(x => parseFloat(x))
-                    dat[1] = dat[1][0] / dat[1][1] * 100
-                    if (isNaN(dat[1])) dat[1] = 0
-                    var datObj = {
-                        code: dat[0],
-                        progress: dat[1]
-                    }
-                    callback(datObj)
-                }
-                if (dat.includes(`App '${appID}' fully installed`)) {
-                    resolve()
-                }
-                //if (dat.indexOf('Success! App \'232330\' fully installed') !== -1) console.log(true)
+        response.data.on('data', (chunk) => {
+            chunks += chunk.length
+            callback({
+                type: 'download',
+                percent: length > 0 ? Math.ceil(chunks / length * 100) : 0,
+                chunks
             })
         })
+
+        await new Promise((resolve, reject) => {
+            response.data.on('error', reject)
+            writer.on('error', reject)
+            writer.on('finish', resolve)
+            response.data.pipe(writer)
+        })
+
+        await new Promise((resolve, reject) => {
+            seven.extractFull(path, `${appDirectory}/steam`, {
+                $bin: appDirectory + '/7za.exe',
+                $progress: true
+            })
+                .on('progress', (dat) => {
+                    callback({
+                        type: 'unzip',
+                        percent: Math.ceil(dat.percent),
+                        files: dat.fileCount
+                    })
+                })
+                .on('error', reject)
+                .on('end', resolve)
+        })
+
+        return {
+            path,
+            success: true
+        }
     },
-    extract: ((file, callback) => {
-        return new Promise(function (resolve) {
-            if (!fs.existsSync(appDirectory + '/cssource/bin/vpk.exe')) return resolve(false)
-            const c = pty.spawn(appDirectory + '/cssource/bin/vpk.exe', [file])
-            c.on('data', (dat) => {
-                dat = dat.substr(dat.indexOf(" ") + 1)
-                callback({
-                    file: dat
+
+
+    initialize: async () => {
+        const runInitialization = () => {
+            return new Promise(function (resolve, reject) {
+                let process
+
+                try {
+                    process = pty.spawn(appDirectory + '/steam/steamcmd.exe', ['+quit'], {
+                        cwd: appDirectory + '/steam/'
+                    })
+                } catch (err) {
+                    reject(err)
+                    return
+                }
+
+                process.on('exit', (event) => {
+                    const exitCode = typeof event === 'number' ? event : event && event.exitCode
+                    resolve(exitCode === undefined ? 0 : exitCode)
                 })
             })
-            c.on('exit', () => {
-                resolve(true)
+        }
+
+        const maxAttempts = 3
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            const exitCode = await runInitialization()
+            if (exitCode === 0) return
+
+            if (attempt < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 3000))
+                continue
+            }
+
+            throw new Error(`SteamCMD initialization failed after ${maxAttempts} attempts (last exit code ${exitCode}).`)
+        }
+    },
+
+    download: async (appID, installPath, callback) => {
+        const runDownload = () => {
+            return new Promise(function (resolve, reject) {
+                const args = [
+                    '+force_install_dir', installPath,
+                    '+login', 'anonymous',
+                    '+app_update', appID, '-validate',
+                    '+quit'
+                ]
+
+                let installed = false
+                let lastError = null
+                let process
+
+                try {
+                    process = pty.spawn(appDirectory + '/steam/steamcmd.exe', args, {
+                        cwd: appDirectory + '/steam/'
+                    })
+                } catch (err) {
+                    reject(err)
+                    return
+                }
+
+                process.on('data', (output) => {
+                    if (output.includes('Update state')) {
+                        const matches = output.match(/\(([^)]+)\)/g)
+
+                        if (matches && matches.length >= 2) {
+                            const code = matches[0].replace(/[()]/g, '')
+                            const progressParts = matches[1]
+                                .replace(/[()" "]/g, '')
+                                .split('/')
+                                .map(x => parseFloat(x))
+
+                            let progress = progressParts[0] / progressParts[1] * 100
+                            if (isNaN(progress)) progress = 0
+
+                            callback({
+                                code,
+                                progress
+                            })
+                        }
+                    }
+
+                    const errorMatch = output.match(/ERROR!\s+(.+)/)
+                    if (errorMatch) lastError = errorMatch[1].trim()
+
+                    if (output.includes(`App '${appID}' fully installed`)) {
+                        installed = true
+                    }
+                })
+
+                process.on('exit', (event) => {
+                    const exitCode = typeof event === 'number' ? event : event && event.exitCode
+                    resolve({
+                        installed,
+                        exitCode: exitCode === undefined ? 0 : exitCode,
+                        lastError
+                    })
+                })
             })
-        })
-    })
+        }
+
+        const maxAttempts = 3
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            const result = await runDownload()
+
+            if (result.installed && result.exitCode === 0) return
+
+            const missingConfiguration = result.lastError && result.lastError.includes('Missing configuration')
+            if (missingConfiguration && attempt < maxAttempts) {
+                callback({
+                    code: 'retry',
+                    progress: 0,
+                    attempt: attempt + 1,
+                    reason: result.lastError
+                })
+                await new Promise(resolve => setTimeout(resolve, 3000))
+                continue
+            }
+
+            const detail = result.lastError ? `: ${result.lastError}` : ''
+            throw new Error(
+                `SteamCMD failed to install app ${appID}${detail}${result.exitCode !== 0 ? ` (exit code ${result.exitCode})` : ''}.`
+            )
+        }
+    },
 }

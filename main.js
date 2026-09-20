@@ -1,169 +1,257 @@
 (async () => {
 	const steamcmd = require('./util/steamcmd')
+	const contentPacks = require('./util/content-packs')
 	const reg = require('native-reg')
 	const progress = require('./util/progress')
 	const fs = require('fs-extra')
 	const enquirer = require('enquirer')
 	const figlet = require('figlet')
 	const chalk = require('chalk')
-	const vdf_parser = require('vdf-parser')
-	const appDirectory = require('path').dirname(process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])).replace(/\\/g, '/')
-	let i;
+	const vdfParser = require('vdf-parser')
+	const mountConfig = require('./util/mount-config')
+	const mountDepots = require('./util/mount-depots')
+	const path = require('path')
+	const readline = require('readline')
 
-	figlet.parseFont('Slant2', fs.readFileSync(__dirname + '/assets/Slant.flf', 'utf8'))
-	console.log(chalk.green(figlet.textSync('CSSTI+', {
+	const appDirectory = path.dirname(
+		process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])
+	)
+
+	const waitForEnter = (message = 'Press Enter to close...') => new Promise((resolve) => {
+		const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+		rl.question(`\n${message}`, () => {
+			rl.close()
+			resolve()
+		})
+	})
+
+	const findSteamPath = () => {
+		const steamSearchLocations = [
+			'SOFTWARE\\Valve\\Steam',
+			'SOFTWARE\\WOW6432Node\\Valve\\Steam'
+		]
+
+		for (const location of steamSearchLocations) {
+			try {
+				let steamKey = reg.openKey(reg.HKCU, location, reg.Access.READ)
+				if (!steamKey) steamKey = reg.openKey(reg.HKLM, location, reg.Access.READ)
+				if (!steamKey) continue
+
+				const steamPath = reg.getValue(steamKey, null, 'SteamPath')
+				if (steamPath) return steamPath
+			} catch {
+				continue
+			}
+		}
+
+		return null
+	}
+
+	const findGmodPath = (steamPath) => {
+		const primaryManifest = path.join(steamPath, 'steamapps', 'appmanifest_4000.acf')
+		if (fs.existsSync(primaryManifest)) {
+			return path.join(steamPath, 'steamapps', 'common', 'GarrysMod')
+		}
+
+		const libraryFile = path.join(steamPath, 'steamapps', 'libraryfolders.vdf')
+		if (!fs.existsSync(libraryFile)) return null
+
+		const libraryData = vdfParser.parse(fs.readFileSync(libraryFile, 'utf8'))
+		const libraries = libraryData.libraryfolders
+		if (!libraries) return null
+
+		for (const key of Object.keys(libraries)) {
+			const library = libraries[key]
+			if (!library || !library.apps || !('4000' in library.apps)) continue
+
+			return path.join(library.path, 'steamapps', 'common', 'GarrysMod')
+		}
+
+		return null
+	}
+
+	const ensureSteamCmd = async () => {
+		const steamCmdPath = path.join(appDirectory, 'steam', 'steamcmd.exe')
+		progress.start('Checking for steamcmd...')
+
+		if (fs.existsSync(steamCmdPath)) {
+			progress.succeed(`Steamcmd.exe found: ${steamCmdPath}`)
+			progress.start('Initializing steamcmd...')
+			await steamcmd.initialize()
+			progress.succeed('Steamcmd initialized.')
+			return
+		}
+
+		progress.update('Downloading steamcmd.exe: 0%')
+
+		const zipPath = path.join(appDirectory, 'steamcmd.zip')
+		const result = await steamcmd.installToPath(zipPath, (data) => {
+			if (data.type === 'download') {
+				progress.update(`Downloading steamcmd.exe: ${data.percent}%`)
+			}
+			if (data.type === 'unzip') {
+				progress.update(`Extracting steamcmd.exe: ${data.percent}% | ${data.files} files`)
+			}
+		})
+
+		if (!result || !result.success) {
+			throw new Error('SteamCMD could not be downloaded or extracted.')
+		}
+
+		if (fs.existsSync(result.path)) fs.unlinkSync(result.path)
+		progress.succeed(`Steamcmd.exe downloaded and extracted: ${steamCmdPath}`)
+
+		progress.start('Initializing steamcmd...')
+		await steamcmd.initialize()
+		progress.succeed('Steamcmd initialized.')
+	}
+
+	const selectPacks = async () => {
+		const selected = []
+
+		for (const pack of Object.values(contentPacks)) {
+			const answer = await enquirer.prompt({
+				type: 'confirm',
+				name: 'install',
+				message: `Install ${pack.name} content? (~${pack.approximateDownloadSize} download / ~${pack.approximateDiskSize} disk)`,
+				initial: pack.id === 'css'
+			})
+
+			if (answer.install) selected.push(pack)
+		}
+
+		return selected
+	}
+
+	const hasValidGameContent = (gamePath) => {
+		if (!fs.existsSync(gamePath)) return false
+
+		const entries = fs.readdirSync(gamePath)
+		if (entries.length === 0) return false
+
+		const hasVpk = entries.some(entry => entry.toLowerCase().endsWith('.vpk'))
+		const mapsPath = path.join(gamePath, 'maps')
+		const hasMaps = fs.existsSync(mapsPath) && fs.readdirSync(mapsPath).some(entry => entry.toLowerCase().endsWith('.bsp'))
+
+		return hasVpk || hasMaps
+	}
+
+	const validateGameContent = (pack, gamePath) => {
+		if (!hasValidGameContent(gamePath)) {
+			throw new Error(`Downloaded ${pack.name}, but no valid VPK files or BSP maps were found in ${gamePath}`)
+		}
+	}
+
+	const getPackPaths = (pack, gmodPath) => {
+		const contentRoot = path.join(gmodPath, 'garrysmod', 'content_mounts')
+		const installPath = path.join(contentRoot, pack.installDir)
+		const gamePath = path.join(installPath, pack.gameDir)
+		return { contentRoot, installPath, gamePath }
+	}
+
+	const installPack = async (pack, gmodPath) => {
+		const { contentRoot, installPath, gamePath } = getPackPaths(pack, gmodPath)
+
+		fs.ensureDirSync(contentRoot)
+
+		progress.start(`Preparing ${pack.name} files... this may take a while.`)
+
+		await steamcmd.download(pack.appId, installPath, (data) => {
+			const percent = Math.ceil(data.progress)
+			if (data.code === '0x3') progress.update(`Preparing ${pack.name}: ${percent}%`)
+			if (data.code === '0x5') progress.update(`Validating ${pack.name}: ${percent}%`)
+			if (data.code === '0x61') progress.update(`Downloading ${pack.name}: ${percent}%`)
+			if (data.code === '0x101') progress.update(`Committing ${pack.name}: ${percent}%`)
+			if (data.code === 'retry') progress.update(`SteamCMD cache initialized, retrying ${pack.name} download (attempt ${data.attempt}/3)...`)
+		})
+
+		validateGameContent(pack, gamePath)
+
+		progress.succeed(`Downloaded and validated ${pack.name} files.`)
+
+		return {
+			key: pack.mountKey,
+			path: gamePath,
+			name: pack.name
+		}
+	}
+
+	figlet.parseFont('Slant2', fs.readFileSync(path.join(__dirname, 'assets', 'Slant.flf'), 'utf8'))
+	console.log(chalk.green(figlet.textSync('GMCI+', {
 		font: 'Slant2',
 		horizontalLayout: 'fitted',
 		verticalLayout: 'fitted'
-	}) + chalk.blueBright('v1.4.0 stable')))
-	console.log(chalk.magenta(`A utility designed to make installing CSSource textures into Garry's Mod ${chalk.blue('easy, safe, and legal')}, by scripting SteamCMD.`))
-	console.log(chalk.hex('#7289DA')(`If you have any issues, be sure to file on GitHub: https://github.com/zulc22/CSS-Texture-Installer-Plus/issues`))
-	progress.start('Verifying steam directory...')
+	}) + chalk.blueBright('v1.5.0 AI-generated release')))
 
-	let steamIPath = await (async () => {
-		steam_search_locations = [
-			"SOFTWARE\\Valve\\Steam",
-			"SOFTWARE\\WOW6432Node\\Valve\\Steam"
-		];
-		for (const loc of steam_search_locations) {
-			try {
-				steamkey = reg.openKey(reg.HKCU, loc, reg.Access.READ);
-				if (!steamkey) steamkey = reg.openKey(reg.HKLM, loc, reg.Access.READ);
-				if (!steamkey) continue;
-				return reg.getValue(steamkey, null, 'SteamPath');
-			} catch {
-				continue;
+	console.log(chalk.magenta(`A utility for installing Valve game content into Garry's Mod ${chalk.blue('directly through SteamCMD')}.`))
+	console.log(chalk.hex('#7289DA')('Issues: https://github.com/suerion/CSS-Texture-Installer-Plus/issues'))
+
+	try {
+		progress.start('Verifying Steam directory...')
+		const steamPath = findSteamPath()
+		if (!steamPath) throw new Error('Steam could not be found on your computer.')
+		progress.succeed(`Steam installation directory found: ${steamPath}`)
+
+		const gmodPath = findGmodPath(steamPath)
+		if (!gmodPath || !fs.existsSync(gmodPath)) {
+			throw new Error(`Garry's Mod could not be found on your computer.`)
+		}
+		progress.succeed(`Garry's Mod installation directory found: ${gmodPath}`)
+
+		const selectedPacks = await selectPacks()
+		if (selectedPacks.length === 0) {
+			progress.start('No content packs selected.')
+			progress.fail('Nothing to install.')
+			await waitForEnter('Press Enter to close...')
+			return
+		}
+
+		const existingPacks = []
+		const packsToInstall = []
+
+		for (const pack of selectedPacks) {
+			const { gamePath } = getPackPaths(pack, gmodPath)
+			if (hasValidGameContent(gamePath)) {
+				existingPacks.push({ pack, gamePath })
+			} else {
+				packsToInstall.push(pack)
 			}
 		}
-		return null;
-	})()
 
-	if (!steamIPath) {
-		return progress.fail('Steam could not be found on your computer.\nAutomatically closing window in 10 seconds.', 10000)
-	}
-	progress.succeed(`Steam installation directory found: ${steamIPath}`)
-	let gmodIPath = await (async () => {
-		return new Promise(function (resolve) {
-			if (fs.existsSync(steamIPath + "/steamapps/appmanifest_4000.acf")) {
-				resolve(steamIPath + "/steamapps/common/GarrysMod")
-			} else if (fs.existsSync(steamIPath + "/steamapps/libraryfolders.vdf")) {
-				var libraryfolders_vdf = vdf_parser.parse(fs.readFileSync(steamIPath + "/steamapps/libraryfolders.vdf").toString())
-				if ("libraryfolders" in libraryfolders_vdf) {
-					for (e in libraryfolders_vdf["libraryfolders"]) {
-						var _e = libraryfolders_vdf["libraryfolders"][e]
-						if ("4000" in _e["apps"]) {
-							resolve(_e["path"].replace("\\\\", "/") + "/steamapps/common/GarrysMod")
-							return
-						}
-					}
-					resolve(false)
-				} else resolve(false)
-			} else resolve(false)
-		})
-	})()
-	if (!gmodIPath || !fs.existsSync(gmodIPath)) {
-		return progress.fail('Garry\'s Mod could not be found on your computer.\nAutomatically closing window in 10 seconds.', 10000)
-	}
-	progress.succeed(`Garry's Mod installation directory found: ${gmodIPath}`)
-	progress.start('Checking for steamcmd...')
-	if (!fs.existsSync(appDirectory + '/steam/steamcmd.exe')) {
-		await (async () => {
-			return new Promise(async function (resolve) {
-				progress.update('Downloading steamcmd.exe: 0%')
-				steamcmd.installToPath(`${appDirectory}/steamcmd.zip`, (dat) => {
-					if (dat.type === 'download') {
-						progress.update(`Downloading steamcmd.exe: ${dat.percent}%`)
-					}
-					if (dat.type === 'unzip') {
-						progress.update(`Extracting steamcmd.exe: ${dat.percent}% | ${dat.files} files`)
-					}
-				}).then((dat) => {
-					if (dat.success) {
-						fs.unlinkSync(dat.path)
-						progress.succeed(`Steamcmd.exe downloaded and extracted: ${appDirectory + '/steam/steamcmd.exe'}`)
-						resolve()
-					}
-				})
-			})
-		})()
-	} else {
-		progress.succeed(`Steamcmd.exe found: ${appDirectory + '/steam/steamcmd.exe'}`)
-	}
-	if (fs.existsSync(appDirectory + '/cssource')) {
-		progress.start(`Found cssource folder. This most likely may have been generated from past usage of the program, and as such is being automatically removed.`)
-		fs.removeSync(appDirectory + '/cssource')
-		progress.succeed(`Cssource folder removed.`)
-	}
-	enquirer.prompt({
-		type: 'confirm',
-		name: 'install',
-		message: 'Would you like to start installing the CSSource textures?'
-	}).then(async choice => {
-		if (!choice.install) return progress.fail('Installation cancelled.\nAutomatically closing window in 10 seconds.', 10000)
-		progress.log('Installation started...')
-		progress.start('Preparing Counter-Strike Source dedicated server files...\nthis may take a minute or two as steamcmd configures itself')
+		for (const { pack, gamePath } of existingPacks) {
+			progress.start(`Checking existing ${pack.name} content...`)
+			progress.succeed(`Existing ${pack.name} content found and validated: ${gamePath}`)
+		}
 
-		i = await (async () => {
-			return new Promise(async (resolve, reject) => {
-				steamcmd.download('232330', [
-					'login anonymous',
-					'force_install_dir ../cssource',
-					'app_update {{app_id}} -validate'
-				], (dat) => {
-					if (dat.code === '0x3') {
-						return progress.update(`Preparing Counter-Strike Source dedicated server files: ${Math.ceil(dat.progress)}%`)
-					}
-					if (dat.code === '0x5') {
-						return progress.update(`Validating Counter-Strike Source dedicated server files: ${Math.ceil(dat.progress)}%`)
-					}
-					if (dat.code === '0x61') {
-						return progress.update(`Downloading Counter-Strike Source dedicated server files: ${Math.ceil(dat.progress)}%`)
-					}
-					if (dat.code === '0x101') {
-						return progress.update(`Commiting Counter-Strike Source dedicated server files: ${Math.ceil(dat.progress)}%`)
-					}
-					// return progress.update('Error: unexpected code. Perhaps try rerunning the program.\nAutomatically closing window in 10 seconds.', 10000)
-				}).then(() => {
-					progress.succeed('Downloaded Counter-Strike Source dedicated server files.')
-					resolve(true)
-				}).catch((err) => {
-					resolve(err)
-				})
-			})
-		})()
-		if (typeof i !== 'boolean') return progress.fail(`Error: ${i}.\nAutomatically closing window in 10 seconds.`, 10000)
-		i = await (async () => {
-			return new Promise(async (resolve, reject) => {
-				progress.start('Extracting Counter-Strike Source dedicated server files...')
-				steamcmd.extract(appDirectory + '/cssource/cstrike/cstrike_pak_dir.vpk', (dat) => {
-					progress.update(`Extracting Counter-Strike Source dedicated server files: ${dat.file}`)
-				}).then(() => {
-					progress.succeed(`Extracted Counter-Strike Source dedicated server files.`)
-					resolve(true)
-				}).catch((err) => {
-					resolve(err)
-				})
-			})
-		})()
-		if (typeof i !== 'boolean') return progress.fail(`Error: ${i}.\nAutomatically closing window in 10 seconds.`, 10000)
-		progress.start('Moving Counter-Strike Source textures into Garry\'s Mod... The console may freeze, this is normal.')
-		if (fs.existsSync(`${gmodIPath}/addons/css_content`)) {
-			progress.update('Deleting old css_content folder...')
-			fs.removeSync(`${gmodIPath}/addons/css_content`)
+		if (packsToInstall.length > 0) {
+			await ensureSteamCmd()
 		}
-		fs.ensureDirSync(`${gmodIPath}/addons/css_content`)
-		const copySet = ['materials', 'models', 'particles', 'sound', 'resource', 'maps']
-		for (let folder of copySet) {
-			progress.update(`Moving ${folder} into ${gmodIPath}/addons/css_content/${folder}`)
-			fs.moveSync(`${appDirectory}/cssource/cstrike/cstrike_pak_dir/${folder}`, `${gmodIPath}/addons/css_content/${folder}`)
+
+		const mounts = existingPacks.map(({ pack, gamePath }) => ({
+			key: pack.mountKey,
+			path: gamePath,
+			name: pack.name
+		}))
+
+		for (const pack of packsToInstall) {
+			mounts.push(await installPack(pack, gmodPath))
 		}
-		progress.succeed(`Successfully moved ${copySet} from ${appDirectory}/cssource/cstrike/cstrike_pak_dir/ to ${gmodIPath}/addons/css_content/`)
-		progress.start('Cleaning up...')
-		const removeSet = ['cssource', 'steam']
-		for (let folder of removeSet) {
-			if (fs.existsSync(`${appDirectory}/${folder}`)) fs.removeSync(`${appDirectory}/${folder}`)
-		}
-		progress.succeed(`The Counter-Strike Source textures have been successfully installed into Garry's Mod.\nInstallation path: ${gmodIPath}/addons/css_content`)
-		progress.log('You may now close this console window.')
-	})
+
+		progress.start('Updating Garry\'s Mod mount.cfg...')
+		const mountResult = mountConfig.updateMountCfg(gmodPath, mounts)
+		progress.succeed(`Updated mount configuration: ${mountResult.mountCfgPath}`)
+
+		progress.start('Updating Garry\'s Mod mountdepots.txt...')
+		const depotResult = mountDepots.updateMountDepots(gmodPath, mounts)
+		progress.succeed(`Updated depot configuration: ${depotResult.depotsPath}`)
+
+		progress.start('Final cleanup...')
+		const steamTemp = path.join(appDirectory, 'steam')
+		if (fs.existsSync(steamTemp)) fs.removeSync(steamTemp)
+		progress.succeed('All selected content packs were installed successfully.')
+		await waitForEnter('Installation completed successfully. Press Enter to close...')
+	} catch (error) {
+		progress.fail(`Installation failed: ${error.message}`)
+		await waitForEnter('Press Enter to close...')
+	}
 })()
