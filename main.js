@@ -11,15 +11,18 @@
 	const mountConfig = require('./util/mount-config')
 	const mountDepots = require('./util/mount-depots')
 	const path = require('path')
+	const readline = require('readline')
 
 	const appDirectory = path.dirname(
 		process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])
 	)
 
 	const waitForEnter = (message = 'Press Enter to close...') => new Promise((resolve) => {
-		process.stdout.write(`\n${message}`)
-		process.stdin.resume()
-		process.stdin.once('data', () => resolve())
+		const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+		rl.question(`\n${message}`, () => {
+			rl.close()
+			resolve()
+		})
 	})
 
 	const findSteamPath = () => {
