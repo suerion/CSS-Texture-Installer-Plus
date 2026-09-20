@@ -16,6 +16,12 @@
 		process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])
 	)
 
+	const waitForEnter = (message = 'Press Enter to close...') => new Promise((resolve) => {
+		process.stdout.write(`\n${message}`)
+		process.stdin.resume()
+		process.stdin.once('data', () => resolve())
+	})
+
 	const findSteamPath = () => {
 		const steamSearchLocations = [
 			'SOFTWARE\\Valve\\Steam',
@@ -208,8 +214,9 @@
 		const steamTemp = path.join(appDirectory, 'steam')
 		if (fs.existsSync(steamTemp)) fs.removeSync(steamTemp)
 		progress.succeed('All selected content packs were installed successfully.')
-		progress.log('You may now close this console window.')
+		await waitForEnter('Installation completed successfully. Press Enter to close...')
 	} catch (error) {
-		progress.fail(`Installation failed: ${error.message}\nAutomatically closing window in 10 seconds.`, 10000)
+		progress.fail(`Installation failed: ${error.message}`)
+		await waitForEnter('Press Enter to close...')
 	}
 })()
