@@ -111,6 +111,25 @@
 		return selected
 	}
 
+	const validateGameContent = (pack, gamePath) => {
+		if (!fs.existsSync(gamePath)) {
+			throw new Error(`Downloaded ${pack.name}, but game directory was not found: ${gamePath}`)
+		}
+
+		const entries = fs.readdirSync(gamePath)
+		if (entries.length === 0) {
+			throw new Error(`Downloaded ${pack.name}, but the game directory is empty: ${gamePath}`)
+		}
+
+		const hasVpk = entries.some(entry => entry.toLowerCase().endsWith('.vpk'))
+		const mapsPath = path.join(gamePath, 'maps')
+		const hasMaps = fs.existsSync(mapsPath) && fs.readdirSync(mapsPath).some(entry => entry.toLowerCase().endsWith('.bsp'))
+
+		if (!hasVpk && !hasMaps) {
+			throw new Error(`Downloaded ${pack.name}, but no VPK files or BSP maps were found in ${gamePath}`)
+		}
+	}
+
 	const installPack = async (pack, gmodPath) => {
 		const contentRoot = path.join(gmodPath, 'garrysmod', 'content_mounts')
 		const installPath = path.join(contentRoot, pack.installDir)
@@ -128,9 +147,7 @@
 			if (data.code === '0x101') progress.update(`Committing ${pack.name}: ${percent}%`)
 		})
 
-		if (!fs.existsSync(gamePath)) {
-			throw new Error(`Downloaded ${pack.name}, but game directory was not found: ${gamePath}`)
-		}
+		validateGameContent(pack, gamePath)
 
 		progress.succeed(`Downloaded and validated ${pack.name} files.`)
 
