@@ -17,9 +17,9 @@
 		font: 'Slant2',
 		horizontalLayout: 'fitted',
 		verticalLayout: 'fitted'
-	}) + chalk.blueBright('v1.4.0 stable')))
+	}) + chalk.blueBright('v1.5.0 AI-assisted development')))
 	console.log(chalk.magenta(`A utility designed to make installing CSSource textures into Garry's Mod ${chalk.blue('easy, safe, and legal')}, by scripting SteamCMD.`))
-	console.log(chalk.hex('#7289DA')(`If you have any issues, be sure to file on GitHub: https://github.com/zulc22/CSS-Texture-Installer-Plus/issues`))
+	console.log(chalk.hex('#7289DA')(`If you have any issues, be sure to file on GitHub: https://github.com/suerion/CSS-Texture-Installer-Plus/issues`))
 	progress.start('Verifying steam directory...')
 
 	let steamIPath = await (async () => {
