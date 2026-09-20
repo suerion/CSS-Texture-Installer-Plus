@@ -1,19 +1,71 @@
-# CSS Texture Installer Plus (v1.4.0)
-![Installer Screenshot](https://github.com/zulc22/CSS-Texture-Installer-Plus/blob/master/screenshots/Capture.PNG?raw=true)
+# Garry's Mod Content Installer Plus (v1.5.0 development)
 
-### An easy to use, straight forward Counter Strike: Source texture installer for Garry's Mod. Utilizies steamcmd under the hood to obtain resources legally, direct from Valve.
+A Windows utility that downloads supported Valve game content directly through SteamCMD and mounts it into Garry's Mod.
 
-## How to install
-1. Download the zip file from the [releases page](https://github.com/zulc22/CSS-Texture-Installer-Plus/releases).
-2. Extract the ZIP file and run the executable inside called `cssource-installer.exe`.
-3. Wait until the installer gets to the prompt asking `Would you like to start installing the CSSource textures?`. Press `y` on your keyboard.
-4. From there, the installer should automatically start downloading the needed dependecies such as `steamcmd`. Everything from this point is automated, so as long as your computer doesn't automtically go into rest mode, feel free to let it do its thing for 5-10 minutes (time may vary depending on connection speeds)
-5. After the installation is finished, the installer will automatically clean up after itself, from which point you are free to delete it off your computer or save it for later use if for whatever reason your textures get messed up or you want to share the installer with a friend.
+> **v1.5.0 is an AI-assisted fork update.**
+> The changes in this development branch were created and reviewed with assistance from OpenAI ChatGPT and still require human testing before release.
 
-## Changelog
-### v1.4.0
-Replaced the external library with another, among other tweaks to get the project building and running properly on Node 22.
-### v1.3.0
-Fixed issues with a custom registry library by replacing it with an external library.
-### v1.2.0
-First release - added detection of the Steam install directory to the project. (This project was originally a pull request, the author just told me to fork, lol)
+Original project by **zulc22**: CSS Texture Installer Plus.  
+This fork keeps the original GPL-3.0-or-later license and attribution.
+
+## Supported content
+
+- Counter-Strike: Source
+- Team Fortress 2
+
+Each content pack can be selected independently when the installer starts.
+
+## How it works
+
+1. The installer finds Steam and Garry's Mod.
+2. It asks whether Counter-Strike: Source should be installed.
+3. It asks whether Team Fortress 2 should be installed.
+4. SteamCMD downloads the selected Valve content directly from Steam.
+5. Content is stored below:
+   `GarrysMod/garrysmod/content_mounts/`
+6. The installer updates:
+   `GarrysMod/garrysmod/cfg/mount.cfg`
+7. Garry's Mod mounts the original game directory, including VPK files, maps, materials, models, sounds and other game resources.
+
+The installer creates a one-time backup of an existing `mount.cfg` as:
+
+`mount.cfg.cssti-backup`
+
+Existing unrelated mount entries are preserved.
+
+## Building
+
+Requirements:
+
+- Node.js 22
+- Windows
+
+Install dependencies:
+
+```
+npm ci
+```
+
+Run tests:
+
+```
+npm test
+```
+
+Build the executable:
+
+```
+npm run build
+```
+
+The executable is created as:
+
+`bin/gmod-content-installer-plus.exe`
+
+GitHub Actions also runs the tests and Windows build automatically for the `v1.5.0` branch.
+
+## Development status
+
+v1.5.0 is currently a development version. Do not publish it as a stable release until Counter-Strike: Source and Team Fortress 2 have both been tested in Garry's Mod.
+
+See [CHANGELOG.md](CHANGELOG.md) for the current changes.
