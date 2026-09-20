@@ -157,7 +157,7 @@
 		const copySet = ['materials', 'models', 'particles', 'sound', 'resource', 'maps']
 		for (let folder of copySet) {
 			progress.update(`Moving ${folder} into ${gmodIPath}/addons/${pack.targetDir}/${folder}`)
-			fs.moveSync(`${appDirectory}/${pack.installDir}/${pack.gameDir}/cstrike_pak_dir/${folder}`, `${gmodIPath}/addons/${pack.targetDir}/${folder}`)
+			fs.moveSync(`${appDirectory}/${pack.installDir}/${pack.gameDir}/${pack.extractedDir}/${folder}`, `${gmodIPath}/addons/${pack.targetDir}/${folder}`)
 		}
 		progress.succeed(`Successfully moved ${copySet} from ${appDirectory}/cssource/cstrike/cstrike_pak_dir/ to ${gmodIPath}/addons/${pack.targetDir}/`)
 		progress.start('Cleaning up...')
