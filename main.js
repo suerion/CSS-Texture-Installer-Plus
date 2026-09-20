@@ -15,11 +15,6 @@
 		process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])
 	)
 
-	const failAndStop = (message) => {
-		progress.fail(message + '\nAutomatically closing window in 10 seconds.', 10000)
-		throw new Error(message)
-	}
-
 	const findSteamPath = () => {
 		const steamSearchLocations = [
 			'SOFTWARE\\\\Valve\\\\Steam',
@@ -171,12 +166,12 @@
 	try {
 		progress.start('Verifying Steam directory...')
 		const steamPath = findSteamPath()
-		if (!steamPath) return failAndStop('Steam could not be found on your computer.')
+		if (!steamPath) throw new Error('Steam could not be found on your computer.')
 		progress.succeed(`Steam installation directory found: ${steamPath}`)
 
 		const gmodPath = findGmodPath(steamPath)
 		if (!gmodPath || !fs.existsSync(gmodPath)) {
-			return failAndStop(`Garry's Mod could not be found on your computer.`)
+			throw new Error(`Garry's Mod could not be found on your computer.`)
 		}
 		progress.succeed(`Garry's Mod installation directory found: ${gmodPath}`)
 
