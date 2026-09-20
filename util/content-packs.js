@@ -5,6 +5,7 @@ module.exports = {
     appId: '232330',
     installDir: 'cssource',
     gameDir: 'cstrike',
+    vpkTool: 'bin/vpk.exe',
     targetDir: 'css_content',
     vpks: [
       'cstrike_pak_dir.vpk'
@@ -17,6 +18,7 @@ module.exports = {
     appId: '232250',
     installDir: 'tf2',
     gameDir: 'tf',
+    vpkTool: 'bin/vpk.exe',
     targetDir: 'tf2_content',
     vpks: [
       'tf2_misc_dir.vpk',
