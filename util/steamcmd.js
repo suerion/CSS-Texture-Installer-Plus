@@ -94,68 +94,92 @@ module.exports = {
         }
     },
 
-    download: (appID, installPath, callback) => {
-        return new Promise(function (resolve, reject) {
-            const args = [
-                '+force_install_dir', installPath,
-                '+login', 'anonymous',
-                '+app_update', appID, '-validate',
-                '+quit'
-            ]
+    download: async (appID, installPath, callback) => {
+        const runDownload = () => {
+            return new Promise(function (resolve, reject) {
+                const args = [
+                    '+force_install_dir', installPath,
+                    '+login', 'anonymous',
+                    '+app_update', appID, '-validate',
+                    '+quit'
+                ]
 
-            let installed = false
-            let process
+                let installed = false
+                let lastError = null
+                let process
 
-            try {
-                process = pty.spawn(appDirectory + '/steam/steamcmd.exe', args, {
-                    cwd: appDirectory + '/steam/'
+                try {
+                    process = pty.spawn(appDirectory + '/steam/steamcmd.exe', args, {
+                        cwd: appDirectory + '/steam/'
+                    })
+                } catch (err) {
+                    reject(err)
+                    return
+                }
+
+                process.on('data', (output) => {
+                    if (output.includes('Update state')) {
+                        const matches = output.match(/\(([^)]+)\)/g)
+
+                        if (matches && matches.length >= 2) {
+                            const code = matches[0].replace(/[()]/g, '')
+                            const progressParts = matches[1]
+                                .replace(/[()" "]/g, '')
+                                .split('/')
+                                .map(x => parseFloat(x))
+
+                            let progress = progressParts[0] / progressParts[1] * 100
+                            if (isNaN(progress)) progress = 0
+
+                            callback({
+                                code,
+                                progress
+                            })
+                        }
+                    }
+
+                    const errorMatch = output.match(/ERROR!\s+(.+)/)
+                    if (errorMatch) lastError = errorMatch[1].trim()
+
+                    if (output.includes(`App '${appID}' fully installed`)) {
+                        installed = true
+                    }
                 })
-            } catch (err) {
-                reject(err)
-                return
+
+                process.on('exit', (event) => {
+                    const exitCode = typeof event === 'number' ? event : event && event.exitCode
+                    resolve({
+                        installed,
+                        exitCode: exitCode === undefined ? 0 : exitCode,
+                        lastError
+                    })
+                })
+            })
+        }
+
+        const maxAttempts = 3
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            const result = await runDownload()
+
+            if (result.installed && result.exitCode === 0) return
+
+            const missingConfiguration = result.lastError && result.lastError.includes('Missing configuration')
+            if (missingConfiguration && attempt < maxAttempts) {
+                callback({
+                    code: 'retry',
+                    progress: 0,
+                    attempt: attempt + 1,
+                    reason: result.lastError
+                })
+                await new Promise(resolve => setTimeout(resolve, 3000))
+                continue
             }
 
-            process.on('data', (output) => {
-                if (output.includes('Update state')) {
-                    const matches = output.match(/\(([^)]+)\)/g)
-
-                    if (matches && matches.length >= 2) {
-                        const code = matches[0].replace(/[()]/g, '')
-                        const progressParts = matches[1]
-                            .replace(/[()" "]/g, '')
-                            .split('/')
-                            .map(x => parseFloat(x))
-
-                        let progress = progressParts[0] / progressParts[1] * 100
-                        if (isNaN(progress)) progress = 0
-
-                        callback({
-                            code,
-                            progress
-                        })
-                    }
-                }
-
-                if (output.includes(`App '${appID}' fully installed`)) {
-                    installed = true
-                }
-            })
-
-            process.on('exit', (event) => {
-                const exitCode = typeof event === 'number' ? event : event && event.exitCode
-
-                if (!installed) {
-                    reject(new Error(`SteamCMD exited before app ${appID} was fully installed${exitCode !== undefined ? ` (exit code ${exitCode})` : ''}.`))
-                    return
-                }
-
-                if (exitCode !== undefined && exitCode !== 0) {
-                    reject(new Error(`SteamCMD exited with code ${exitCode}.`))
-                    return
-                }
-
-                resolve()
-            })
-        })
+            const detail = result.lastError ? `: ${result.lastError}` : ''
+            throw new Error(
+                `SteamCMD failed to install app ${appID}${detail}${result.exitCode !== 0 ? ` (exit code ${result.exitCode})` : ''}.`
+            )
+        }
     },
 }
