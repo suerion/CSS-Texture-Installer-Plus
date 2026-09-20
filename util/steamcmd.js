@@ -57,6 +57,33 @@ module.exports = {
         }
     },
 
+
+    initialize: () => {
+        return new Promise(function (resolve, reject) {
+            let process
+
+            try {
+                process = pty.spawn(appDirectory + '/steam/steamcmd.exe', ['+quit'], {
+                    cwd: appDirectory + '/steam/'
+                })
+            } catch (err) {
+                reject(err)
+                return
+            }
+
+            process.on('exit', (event) => {
+                const exitCode = typeof event === 'number' ? event : event && event.exitCode
+
+                if (exitCode !== undefined && exitCode !== 0) {
+                    reject(new Error(`SteamCMD initialization exited with code ${exitCode}.`))
+                    return
+                }
+
+                resolve()
+            })
+        })
+    },
+
     download: (appID, installPath, callback) => {
         return new Promise(function (resolve, reject) {
             const args = [
