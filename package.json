@@ -1,6 +1,6 @@
 {
   "name": "gmod-content-installer-plus",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "A Garry's Mod content installer that downloads and mounts Valve game content through SteamCMD.",
   "main": "main.js",
   "scripts": {
