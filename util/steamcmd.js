@@ -2,7 +2,8 @@ const pty = require('@lydell/node-pty')
 const fs = require('fs-extra')
 const { spawn } = require('child_process')
 const axios = require('axios')
-const appDirectory = require('path').dirname(process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])).replace(/\\/g, '/')
+const pathUtils = require('path')
+const appDirectory = pathUtils.dirname(process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])).replace(/\\/g, '/')
 
 module.exports = {
     installToPath: async (path, callback) => {
@@ -217,6 +218,45 @@ module.exports = {
                 })
                 await new Promise(resolve => setTimeout(resolve, 30000))
                 continue
+            }
+
+            if (transientUpdateFailure && attempt === maxAttempts && appID === '232250') {
+                const manifestPath = pathUtils.join(installPath, 'steamapps', `appmanifest_${appID}.acf`)
+                const backupPath = manifestPath + '.gmci-backup'
+
+                if (fs.existsSync(manifestPath)) {
+                    callback({
+                        code: 'metadata-refresh',
+                        progress: 0,
+                        manifestPath,
+                        backupPath
+                    })
+
+                    if (!fs.existsSync(backupPath)) {
+                        fs.copyFileSync(manifestPath, backupPath)
+                    }
+
+                    fs.removeSync(manifestPath)
+
+                    const refreshResult = await runDownload()
+                    if (refreshResult.installed && refreshResult.exitCode === 0) {
+                        callback({
+                            code: 'metadata-refresh-success',
+                            progress: 100,
+                            backupPath
+                        })
+                        return
+                    }
+
+                    if (!fs.existsSync(manifestPath) && fs.existsSync(backupPath)) {
+                        fs.copyFileSync(backupPath, manifestPath)
+                    }
+
+                    const refreshDetail = refreshResult.lastError ? `: ${refreshResult.lastError}` : ''
+                    throw new Error(
+                        `SteamCMD failed to install app ${appID} after refreshing its local SteamCMD metadata${refreshDetail}${refreshResult.exitCode !== 0 ? ` (exit code ${refreshResult.exitCode})` : ''}. Original app manifest restored; backup kept at ${backupPath}.`
+                    )
+                }
             }
 
             const detail = result.lastError ? `: ${result.lastError}` : ''
