@@ -149,20 +149,16 @@ module.exports = {
 
                 process.on('data', (output) => {
                     if (output.includes('Update state')) {
-                        const matches = output.match(/\(([^)]+)\)/g)
+                        const codeMatch = output.match(/Update state\s+\((0x[0-9a-f]+)\)/i)
+                        const progressMatch = output.match(/progress:\s*([0-9]+(?:\.[0-9]+)?)/i)
 
-                        if (matches && matches.length >= 2) {
-                            const code = matches[0].replace(/[()]/g, '')
-                            const progressParts = matches[1]
-                                .replace(/[()" "]/g, '')
-                                .split('/')
-                                .map(x => parseFloat(x))
-
-                            let progress = progressParts[0] / progressParts[1] * 100
-                            if (isNaN(progress)) progress = 0
+                        if (codeMatch) {
+                            let progress = progressMatch ? parseFloat(progressMatch[1]) : 0
+                            if (!Number.isFinite(progress)) progress = 0
+                            progress = Math.max(0, Math.min(100, progress))
 
                             callback({
-                                code,
+                                code: codeMatch[1],
                                 progress
                             })
                         }
