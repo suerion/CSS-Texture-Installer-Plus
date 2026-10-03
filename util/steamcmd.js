@@ -1,6 +1,6 @@
 const pty = require('@lydell/node-pty')
 const fs = require('fs-extra')
-const seven = require('node-7z')
+const { spawn } = require('child_process')
 const axios = require('axios')
 const appDirectory = require('path').dirname(process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])).replace(/\\/g, '/')
 
@@ -35,27 +35,46 @@ module.exports = {
             response.data.pipe(writer)
         })
 
-        const sevenZipPath = appDirectory + '/7za.exe'
-        if (!fs.existsSync(sevenZipPath)) {
-            throw new Error(`7za.exe could not be found next to the installer: ${sevenZipPath}`)
-        }
+        const steamDirectory = `${appDirectory}/steam`
+        fs.ensureDirSync(steamDirectory)
+        callback({ type: 'unzip', percent: 0, files: 0 })
 
         await new Promise((resolve, reject) => {
-            seven.extractFull(path, `${appDirectory}/steam`, {
-                $bin: sevenZipPath,
-                $progress: true
+            const command = [
+                "$ErrorActionPreference = 'Stop'",
+                "Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force"
+            ].join('; ')
+
+            const child = spawn('powershell.exe', [
+                '-NoProfile',
+                '-NonInteractive',
+                '-Command',
+                command,
+                path,
+                steamDirectory
+            ], {
+                windowsHide: true
             })
-                .on('progress', (dat) => {
-                    callback({
-                        type: 'unzip',
-                        percent: Math.ceil(dat.percent),
-                        files: dat.fileCount
-                    })
-                })
-                .on('error', (error) => {
-                    reject(new Error(`SteamCMD extraction failed: ${error.message || error}`))
-                })
-                .on('end', resolve)
+
+            let stderr = ''
+            child.stderr.on('data', data => {
+                stderr += data.toString()
+            })
+
+            child.on('error', (error) => {
+                reject(new Error(`SteamCMD extraction could not start: ${error.message || error}`))
+            })
+
+            child.on('exit', (code) => {
+                if (code === 0) {
+                    callback({ type: 'unzip', percent: 100, files: 0 })
+                    resolve()
+                    return
+                }
+
+                const detail = stderr.trim() ? `: ${stderr.trim()}` : ''
+                reject(new Error(`SteamCMD extraction failed with exit code ${code}${detail}`))
+            })
         })
 
         return {
