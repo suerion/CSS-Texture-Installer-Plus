@@ -35,9 +35,14 @@ module.exports = {
             response.data.pipe(writer)
         })
 
+        const sevenZipPath = appDirectory + '/7za.exe'
+        if (!fs.existsSync(sevenZipPath)) {
+            throw new Error(`7za.exe could not be found next to the installer: ${sevenZipPath}`)
+        }
+
         await new Promise((resolve, reject) => {
             seven.extractFull(path, `${appDirectory}/steam`, {
-                $bin: appDirectory + '/7za.exe',
+                $bin: sevenZipPath,
                 $progress: true
             })
                 .on('progress', (dat) => {
@@ -47,7 +52,9 @@ module.exports = {
                         files: dat.fileCount
                     })
                 })
-                .on('error', reject)
+                .on('error', (error) => {
+                    reject(new Error(`SteamCMD extraction failed: ${error.message || error}`))
+                })
                 .on('end', resolve)
         })
 
