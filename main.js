@@ -17,11 +17,12 @@
 		process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])
 	)
 
-	const waitForEnter = (message = 'Press Enter to close...') => new Promise((resolve) => {
+	const waitForEnter = (message = 'Press Enter to close...', exitCode = 0) => new Promise(() => {
 		const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 		rl.question(`\n${message}`, () => {
 			rl.close()
-			resolve()
+			process.stdin.pause()
+			process.exit(exitCode)
 		})
 	})
 
@@ -149,12 +150,16 @@
 		return { contentRoot, installPath, gamePath }
 	}
 
-	const installPack = async (pack, gmodPath) => {
+	const syncPack = async (pack, gmodPath, existingContent) => {
 		const { contentRoot, installPath, gamePath } = getPackPaths(pack, gmodPath)
 
 		fs.ensureDirSync(contentRoot)
 
-		progress.start(`Preparing ${pack.name} files... this may take a while.`)
+		if (existingContent) {
+			progress.start(`Existing ${pack.name} content found. Validating files and checking for updates through SteamCMD...`)
+		} else {
+			progress.start(`Preparing ${pack.name} files... this may take a while.`)
+		}
 
 		await steamcmd.download(pack.appId, installPath, (data) => {
 			const percent = Math.ceil(data.progress)
@@ -163,11 +168,16 @@
 			if (data.code === '0x61') progress.update(`Downloading ${pack.name}: ${percent}%`)
 			if (data.code === '0x101') progress.update(`Committing ${pack.name}: ${percent}%`)
 			if (data.code === 'retry') progress.update(`SteamCMD cache initialized, retrying ${pack.name} download (attempt ${data.attempt}/3)...`)
+			if (data.code === 'retry-wait') progress.update(`SteamCMD update problem for ${pack.name}. Retrying in 30 seconds (attempt ${data.attempt}/3)...`)
+			if (data.code === 'metadata-refresh') progress.update(`Refreshing local SteamCMD metadata for ${pack.name} and retrying with the current depot manifests...`)
+			if (data.code === 'metadata-refresh-success') progress.update(`SteamCMD metadata refresh completed for ${pack.name}.`)
 		})
 
 		validateGameContent(pack, gamePath)
 
-		progress.succeed(`Downloaded and validated ${pack.name} files.`)
+		progress.succeed(existingContent
+			? `${pack.name} is up to date and validated through SteamCMD.`
+			: `Downloaded and validated ${pack.name} files through SteamCMD.`)
 
 		return {
 			key: pack.mountKey,
@@ -181,7 +191,7 @@
 		font: 'Slant2',
 		horizontalLayout: 'fitted',
 		verticalLayout: 'fitted'
-	}) + chalk.blueBright('v1.5.0 AI-generated release')))
+	}) + chalk.blueBright('v1.5.1 AI-generated release')))
 
 	console.log(chalk.magenta(`A utility for installing Valve game content into Garry's Mod ${chalk.blue('directly through SteamCMD')}.`))
 	console.log(chalk.hex('#7289DA')('Issues: https://github.com/suerion/CSS-Texture-Installer-Plus/issues'))
@@ -202,39 +212,23 @@
 		if (selectedPacks.length === 0) {
 			progress.start('No content packs selected.')
 			progress.fail('Nothing to install.')
-			await waitForEnter('Press Enter to close...')
+			await waitForEnter('Press Enter to close...', 0)
 			return
 		}
 
-		const existingPacks = []
-		const packsToInstall = []
+		await ensureSteamCmd()
 
+		const mounts = []
 		for (const pack of selectedPacks) {
 			const { gamePath } = getPackPaths(pack, gmodPath)
-			if (hasValidGameContent(gamePath)) {
-				existingPacks.push({ pack, gamePath })
-			} else {
-				packsToInstall.push(pack)
+			const existingContent = hasValidGameContent(gamePath)
+
+			if (existingContent) {
+				progress.start(`Existing ${pack.name} content detected: ${gamePath}`)
+				progress.succeed(`Existing ${pack.name} content will be checked through SteamCMD.`)
 			}
-		}
 
-		for (const { pack, gamePath } of existingPacks) {
-			progress.start(`Checking existing ${pack.name} content...`)
-			progress.succeed(`Existing ${pack.name} content found and validated: ${gamePath}`)
-		}
-
-		if (packsToInstall.length > 0) {
-			await ensureSteamCmd()
-		}
-
-		const mounts = existingPacks.map(({ pack, gamePath }) => ({
-			key: pack.mountKey,
-			path: gamePath,
-			name: pack.name
-		}))
-
-		for (const pack of packsToInstall) {
-			mounts.push(await installPack(pack, gmodPath))
+			mounts.push(await syncPack(pack, gmodPath, existingContent))
 		}
 
 		progress.start('Updating Garry\'s Mod mount.cfg...')
@@ -249,9 +243,9 @@
 		const steamTemp = path.join(appDirectory, 'steam')
 		if (fs.existsSync(steamTemp)) fs.removeSync(steamTemp)
 		progress.succeed('All selected content packs were installed successfully.')
-		await waitForEnter('Installation completed successfully. Press Enter to close...')
+		await waitForEnter('Installation completed successfully. Press Enter to close...', 0)
 	} catch (error) {
 		progress.fail(`Installation failed: ${error.message}`)
-		await waitForEnter('Press Enter to close...')
+		await waitForEnter('Press Enter to close...', 1)
 	}
 })()

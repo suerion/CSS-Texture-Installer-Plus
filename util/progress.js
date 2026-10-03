@@ -18,8 +18,11 @@ module.exports = {
     },
     fail: (msg, interval) => {
         progress.fail(chalk.red(msg))
-        setTimeout(() => {
-            return process.exit()
-        }, interval)
+
+        if (Number.isFinite(interval) && interval > 0) {
+            setTimeout(() => {
+                process.exit()
+            }, interval)
+        }
     }
 }

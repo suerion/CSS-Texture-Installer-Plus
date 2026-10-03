@@ -1,8 +1,9 @@
 const pty = require('@lydell/node-pty')
 const fs = require('fs-extra')
-const seven = require('node-7z')
+const { spawn } = require('child_process')
 const axios = require('axios')
-const appDirectory = require('path').dirname(process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])).replace(/\\/g, '/')
+const pathUtils = require('path')
+const appDirectory = pathUtils.dirname(process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])).replace(/\\/g, '/')
 
 module.exports = {
     installToPath: async (path, callback) => {
@@ -35,20 +36,49 @@ module.exports = {
             response.data.pipe(writer)
         })
 
+        const steamDirectory = `${appDirectory}/steam`
+        fs.ensureDirSync(steamDirectory)
+        callback({ type: 'unzip', percent: 0, files: 0 })
+
         await new Promise((resolve, reject) => {
-            seven.extractFull(path, `${appDirectory}/steam`, {
-                $bin: appDirectory + '/7za.exe',
-                $progress: true
+            const command = [
+                "$ErrorActionPreference = 'Stop'",
+                "Expand-Archive -LiteralPath $env:STEAMCMD_ZIP -DestinationPath $env:STEAMCMD_DIR -Force"
+            ].join('; ')
+
+            const child = spawn('powershell.exe', [
+                '-NoProfile',
+                '-NonInteractive',
+                '-Command',
+                command
+            ], {
+                windowsHide: true,
+                env: {
+                    ...process.env,
+                    STEAMCMD_ZIP: path,
+                    STEAMCMD_DIR: steamDirectory
+                }
             })
-                .on('progress', (dat) => {
-                    callback({
-                        type: 'unzip',
-                        percent: Math.ceil(dat.percent),
-                        files: dat.fileCount
-                    })
-                })
-                .on('error', reject)
-                .on('end', resolve)
+
+            let stderr = ''
+            child.stderr.on('data', data => {
+                stderr += data.toString()
+            })
+
+            child.on('error', (error) => {
+                reject(new Error(`SteamCMD extraction could not start: ${error.message || error}`))
+            })
+
+            child.on('exit', (code) => {
+                if (code === 0) {
+                    callback({ type: 'unzip', percent: 100, files: 0 })
+                    resolve()
+                    return
+                }
+
+                const detail = stderr.trim() ? `: ${stderr.trim()}` : ''
+                reject(new Error(`SteamCMD extraction failed with exit code ${code}${detail}`))
+            })
         })
 
         return {
@@ -119,26 +149,22 @@ module.exports = {
 
                 process.on('data', (output) => {
                     if (output.includes('Update state')) {
-                        const matches = output.match(/\(([^)]+)\)/g)
+                        const codeMatch = output.match(/Update state\s+\((0x[0-9a-f]+)\)/i)
+                        const progressMatch = output.match(/progress:\s*([0-9]+(?:\.[0-9]+)?)/i)
 
-                        if (matches && matches.length >= 2) {
-                            const code = matches[0].replace(/[()]/g, '')
-                            const progressParts = matches[1]
-                                .replace(/[()" "]/g, '')
-                                .split('/')
-                                .map(x => parseFloat(x))
-
-                            let progress = progressParts[0] / progressParts[1] * 100
-                            if (isNaN(progress)) progress = 0
+                        if (codeMatch) {
+                            let progress = progressMatch ? parseFloat(progressMatch[1]) : 0
+                            if (!Number.isFinite(progress)) progress = 0
+                            progress = Math.max(0, Math.min(100, progress))
 
                             callback({
-                                code,
+                                code: codeMatch[1],
                                 progress
                             })
                         }
                     }
 
-                    const errorMatch = output.match(/ERROR!\s+(.+)/)
+                    const errorMatch = output.match(/ERROR!\s+(.+)/i)
                     if (errorMatch) lastError = errorMatch[1].trim()
 
                     if (output.includes(`App '${appID}' fully installed`)) {
@@ -174,6 +200,59 @@ module.exports = {
                 })
                 await new Promise(resolve => setTimeout(resolve, 3000))
                 continue
+            }
+
+            const transientUpdateFailure = result.exitCode === 8 ||
+                (result.lastError && /state is 0x6 after update job/i.test(result.lastError))
+
+            if (transientUpdateFailure && attempt < maxAttempts) {
+                callback({
+                    code: 'retry-wait',
+                    progress: 0,
+                    attempt: attempt + 1,
+                    reason: result.lastError || `exit code ${result.exitCode}`
+                })
+                await new Promise(resolve => setTimeout(resolve, 30000))
+                continue
+            }
+
+            if (transientUpdateFailure && attempt === maxAttempts && appID === '232250') {
+                const manifestPath = pathUtils.join(installPath, 'steamapps', `appmanifest_${appID}.acf`)
+                const backupPath = manifestPath + '.gmci-backup'
+
+                if (fs.existsSync(manifestPath)) {
+                    callback({
+                        code: 'metadata-refresh',
+                        progress: 0,
+                        manifestPath,
+                        backupPath
+                    })
+
+                    if (!fs.existsSync(backupPath)) {
+                        fs.copyFileSync(manifestPath, backupPath)
+                    }
+
+                    fs.removeSync(manifestPath)
+
+                    const refreshResult = await runDownload()
+                    if (refreshResult.installed && refreshResult.exitCode === 0) {
+                        callback({
+                            code: 'metadata-refresh-success',
+                            progress: 100,
+                            backupPath
+                        })
+                        return
+                    }
+
+                    if (!fs.existsSync(manifestPath) && fs.existsSync(backupPath)) {
+                        fs.copyFileSync(backupPath, manifestPath)
+                    }
+
+                    const refreshDetail = refreshResult.lastError ? `: ${refreshResult.lastError}` : ''
+                    throw new Error(
+                        `SteamCMD failed to install app ${appID} after refreshing its local SteamCMD metadata${refreshDetail}${refreshResult.exitCode !== 0 ? ` (exit code ${refreshResult.exitCode})` : ''}. Original app manifest restored; backup kept at ${backupPath}.`
+                    )
+                }
             }
 
             const detail = result.lastError ? `: ${result.lastError}` : ''

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - v1.5.0
+      - v1.5.1
       - master
   pull_request:
     branches:

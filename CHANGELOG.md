@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.5.1 - AI-generated maintenance update
+
+### Fixed
+- Existing Counter-Strike: Source and Team Fortress 2 installations are no longer treated as valid solely because local VPK/BSP files are present.
+- Every selected content pack now runs through SteamCMD `app_update ... -validate`, allowing SteamCMD to check for updates and repair missing or corrupted files.
+- Installer messaging now distinguishes between locally detected content and SteamCMD-validated/up-to-date content.
+
 ## v1.5.0 - AI-generated fork update
 
 This release continues the original work by zulc22 and is maintained in the suerion fork.
