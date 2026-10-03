@@ -17,11 +17,12 @@
 		process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])
 	)
 
-	const waitForEnter = (message = 'Press Enter to close...') => new Promise((resolve) => {
+	const waitForEnter = (message = 'Press Enter to close...', exitCode = 0) => new Promise(() => {
 		const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 		rl.question(`\n${message}`, () => {
 			rl.close()
-			resolve()
+			process.stdin.pause()
+			process.exit(exitCode)
 		})
 	})
 
@@ -167,6 +168,7 @@
 			if (data.code === '0x61') progress.update(`Downloading ${pack.name}: ${percent}%`)
 			if (data.code === '0x101') progress.update(`Committing ${pack.name}: ${percent}%`)
 			if (data.code === 'retry') progress.update(`SteamCMD cache initialized, retrying ${pack.name} download (attempt ${data.attempt}/3)...`)
+			if (data.code === 'retry-wait') progress.update(`SteamCMD update problem for ${pack.name}. Retrying in 30 seconds (attempt ${data.attempt}/3)...`)
 		})
 
 		validateGameContent(pack, gamePath)
@@ -208,7 +210,7 @@
 		if (selectedPacks.length === 0) {
 			progress.start('No content packs selected.')
 			progress.fail('Nothing to install.')
-			await waitForEnter('Press Enter to close...')
+			await waitForEnter('Press Enter to close...', 0)
 			return
 		}
 
@@ -239,9 +241,9 @@
 		const steamTemp = path.join(appDirectory, 'steam')
 		if (fs.existsSync(steamTemp)) fs.removeSync(steamTemp)
 		progress.succeed('All selected content packs were installed successfully.')
-		await waitForEnter('Installation completed successfully. Press Enter to close...')
+		await waitForEnter('Installation completed successfully. Press Enter to close...', 0)
 	} catch (error) {
 		progress.fail(`Installation failed: ${error.message}`)
-		await waitForEnter('Press Enter to close...')
+		await waitForEnter('Press Enter to close...', 1)
 	}
 })()
