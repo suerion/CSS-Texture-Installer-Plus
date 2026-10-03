@@ -42,18 +42,21 @@ module.exports = {
         await new Promise((resolve, reject) => {
             const command = [
                 "$ErrorActionPreference = 'Stop'",
-                "Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force"
+                "Expand-Archive -LiteralPath $env:STEAMCMD_ZIP -DestinationPath $env:STEAMCMD_DIR -Force"
             ].join('; ')
 
             const child = spawn('powershell.exe', [
                 '-NoProfile',
                 '-NonInteractive',
                 '-Command',
-                command,
-                path,
-                steamDirectory
+                command
             ], {
-                windowsHide: true
+                windowsHide: true,
+                env: {
+                    ...process.env,
+                    STEAMCMD_ZIP: path,
+                    STEAMCMD_DIR: steamDirectory
+                }
             })
 
             let stderr = ''
