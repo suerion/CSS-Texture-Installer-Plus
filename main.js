@@ -191,7 +191,7 @@
 		font: 'Slant2',
 		horizontalLayout: 'fitted',
 		verticalLayout: 'fitted'
-	}) + chalk.blueBright('v1.5.1 AI-generated development')))
+	}) + chalk.blueBright('v1.5.1 AI-generated release')))
 
 	console.log(chalk.magenta(`A utility for installing Valve game content into Garry's Mod ${chalk.blue('directly through SteamCMD')}.`))
 	console.log(chalk.hex('#7289DA')('Issues: https://github.com/suerion/CSS-Texture-Installer-Plus/issues'))
