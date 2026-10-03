@@ -169,6 +169,8 @@
 			if (data.code === '0x101') progress.update(`Committing ${pack.name}: ${percent}%`)
 			if (data.code === 'retry') progress.update(`SteamCMD cache initialized, retrying ${pack.name} download (attempt ${data.attempt}/3)...`)
 			if (data.code === 'retry-wait') progress.update(`SteamCMD update problem for ${pack.name}. Retrying in 30 seconds (attempt ${data.attempt}/3)...`)
+			if (data.code === 'metadata-refresh') progress.update(`Refreshing local SteamCMD metadata for ${pack.name} and retrying with the current depot manifests...`)
+			if (data.code === 'metadata-refresh-success') progress.update(`SteamCMD metadata refresh completed for ${pack.name}.`)
 		})
 
 		validateGameContent(pack, gamePath)
