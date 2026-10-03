@@ -167,7 +167,7 @@ module.exports = {
                         }
                     }
 
-                    const errorMatch = output.match(/ERROR!\s+(.+)/)
+                    const errorMatch = output.match(/ERROR!\s+(.+)/i)
                     if (errorMatch) lastError = errorMatch[1].trim()
 
                     if (output.includes(`App '${appID}' fully installed`)) {
@@ -202,6 +202,20 @@ module.exports = {
                     reason: result.lastError
                 })
                 await new Promise(resolve => setTimeout(resolve, 3000))
+                continue
+            }
+
+            const transientUpdateFailure = result.exitCode === 8 ||
+                (result.lastError && /state is 0x6 after update job/i.test(result.lastError))
+
+            if (transientUpdateFailure && attempt < maxAttempts) {
+                callback({
+                    code: 'retry-wait',
+                    progress: 0,
+                    attempt: attempt + 1,
+                    reason: result.lastError || `exit code ${result.exitCode}`
+                })
+                await new Promise(resolve => setTimeout(resolve, 30000))
                 continue
             }
 
