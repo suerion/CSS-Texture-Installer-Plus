@@ -3,6 +3,7 @@ const fs = require('fs-extra')
 const { spawn } = require('child_process')
 const axios = require('axios')
 const pathUtils = require('path')
+const logger = require('./logger')
 const appDirectory = pathUtils.dirname(process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])).replace(/\\/g, '/')
 
 module.exports = {
@@ -104,7 +105,9 @@ module.exports = {
 
                 process.on('exit', (event) => {
                     const exitCode = typeof event === 'number' ? event : event && event.exitCode
-                    resolve(exitCode === undefined ? 0 : exitCode)
+                    const normalizedExitCode = exitCode === undefined ? 0 : exitCode
+                    logger.info(`SteamCMD initialization exited with code ${normalizedExitCode}.`)
+                    resolve(normalizedExitCode)
                 })
             })
         }
@@ -148,6 +151,8 @@ module.exports = {
                 }
 
                 process.on('data', (output) => {
+                    logger.steamcmd(output)
+
                     if (output.includes('Update state')) {
                         const codeMatch = output.match(/Update state\s+\((0x[0-9a-f]+)\)/i)
                         const progressMatch = output.match(/progress:\s*([0-9]+(?:\.[0-9]+)?)/i)
@@ -174,9 +179,11 @@ module.exports = {
 
                 process.on('exit', (event) => {
                     const exitCode = typeof event === 'number' ? event : event && event.exitCode
+                    const normalizedExitCode = exitCode === undefined ? 0 : exitCode
+                    logger.info(`SteamCMD app ${appID} exited with code ${normalizedExitCode}; installed=${installed}; lastError=${lastError || 'none'}.`)
                     resolve({
                         installed,
-                        exitCode: exitCode === undefined ? 0 : exitCode,
+                        exitCode: normalizedExitCode,
                         lastError
                     })
                 })
@@ -205,6 +212,50 @@ module.exports = {
             const transientUpdateFailure = result.exitCode === 8 ||
                 (result.lastError && /state is 0x6 after update job/i.test(result.lastError))
 
+            const shouldRefreshTf2Metadata = transientUpdateFailure &&
+                appID === '232250' &&
+                fs.existsSync(pathUtils.join(installPath, 'steamapps', `appmanifest_${appID}.acf`))
+
+            if (shouldRefreshTf2Metadata) {
+                const manifestPath = pathUtils.join(installPath, 'steamapps', `appmanifest_${appID}.acf`)
+                const backupPath = manifestPath + '.gmci-backup'
+
+                callback({
+                    code: 'metadata-refresh',
+                    progress: 0,
+                    manifestPath,
+                    backupPath
+                })
+
+                if (!fs.existsSync(backupPath)) {
+                    fs.copyFileSync(manifestPath, backupPath)
+                    logger.info(`Backed up stale TF2 manifest to ${backupPath}.`)
+                }
+
+                fs.removeSync(manifestPath)
+                logger.info(`Removed stale TF2 manifest ${manifestPath} before metadata refresh.`)
+
+                const refreshResult = await runDownload()
+                if (refreshResult.installed && refreshResult.exitCode === 0) {
+                    callback({
+                        code: 'metadata-refresh-success',
+                        progress: 100,
+                        backupPath
+                    })
+                    return
+                }
+
+                if (!fs.existsSync(manifestPath) && fs.existsSync(backupPath)) {
+                    fs.copyFileSync(backupPath, manifestPath)
+                    logger.info(`Restored original TF2 manifest from ${backupPath}.`)
+                }
+
+                const refreshDetail = refreshResult.lastError ? `: ${refreshResult.lastError}` : ''
+                throw new Error(
+                    `SteamCMD failed to install app ${appID} after refreshing its local SteamCMD metadata${refreshDetail}${refreshResult.exitCode !== 0 ? ` (exit code ${refreshResult.exitCode})` : ''}. Original app manifest restored; backup kept at ${backupPath}.`
+                )
+            }
+
             if (transientUpdateFailure && attempt < maxAttempts) {
                 callback({
                     code: 'retry-wait',
@@ -214,45 +265,6 @@ module.exports = {
                 })
                 await new Promise(resolve => setTimeout(resolve, 30000))
                 continue
-            }
-
-            if (transientUpdateFailure && attempt === maxAttempts && appID === '232250') {
-                const manifestPath = pathUtils.join(installPath, 'steamapps', `appmanifest_${appID}.acf`)
-                const backupPath = manifestPath + '.gmci-backup'
-
-                if (fs.existsSync(manifestPath)) {
-                    callback({
-                        code: 'metadata-refresh',
-                        progress: 0,
-                        manifestPath,
-                        backupPath
-                    })
-
-                    if (!fs.existsSync(backupPath)) {
-                        fs.copyFileSync(manifestPath, backupPath)
-                    }
-
-                    fs.removeSync(manifestPath)
-
-                    const refreshResult = await runDownload()
-                    if (refreshResult.installed && refreshResult.exitCode === 0) {
-                        callback({
-                            code: 'metadata-refresh-success',
-                            progress: 100,
-                            backupPath
-                        })
-                        return
-                    }
-
-                    if (!fs.existsSync(manifestPath) && fs.existsSync(backupPath)) {
-                        fs.copyFileSync(backupPath, manifestPath)
-                    }
-
-                    const refreshDetail = refreshResult.lastError ? `: ${refreshResult.lastError}` : ''
-                    throw new Error(
-                        `SteamCMD failed to install app ${appID} after refreshing its local SteamCMD metadata${refreshDetail}${refreshResult.exitCode !== 0 ? ` (exit code ${refreshResult.exitCode})` : ''}. Original app manifest restored; backup kept at ${backupPath}.`
-                    )
-                }
             }
 
             const detail = result.lastError ? `: ${result.lastError}` : ''
