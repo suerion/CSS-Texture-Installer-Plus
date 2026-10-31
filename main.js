@@ -12,6 +12,7 @@
 	const mountDepots = require('./util/mount-depots')
 	const path = require('path')
 	const readline = require('readline')
+	const logger = require('./util/logger')
 
 	const appDirectory = path.dirname(
 		process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])
@@ -191,9 +192,12 @@
 		font: 'Slant2',
 		horizontalLayout: 'fitted',
 		verticalLayout: 'fitted'
-	}) + chalk.blueBright('v1.5.1 AI-generated release')))
+	}) + chalk.blueBright('v1.5.2 AI-generated development')))
 
+	logger.info('GMCI+ v1.5.2 session started.')
+	logger.info(`Log file: ${logger.getPath()}`)
 	console.log(chalk.magenta(`A utility for installing Valve game content into Garry's Mod ${chalk.blue('directly through SteamCMD')}.`))
+	console.log(chalk.gray(`Log file: ${logger.getPath()}`))
 	console.log(chalk.hex('#7289DA')('Issues: https://github.com/suerion/CSS-Texture-Installer-Plus/issues'))
 
 	try {
@@ -209,6 +213,7 @@
 		progress.succeed(`Garry's Mod installation directory found: ${gmodPath}`)
 
 		const selectedPacks = await selectPacks()
+		logger.info(`Selected content packs: ${selectedPacks.map(pack => `${pack.name} (${pack.appId})`).join(', ') || 'none'}.`)
 		if (selectedPacks.length === 0) {
 			progress.start('No content packs selected.')
 			progress.fail('Nothing to install.')
