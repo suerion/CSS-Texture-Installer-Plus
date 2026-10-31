@@ -1,4 +1,4 @@
-# Garry's Mod Content Installer Plus (v1.5.2 development)
+# Garry's Mod Content Installer Plus (v1.5.2)
 
 A Windows utility that downloads supported Valve game content directly through SteamCMD and mounts it into Garry's Mod.
 
@@ -48,6 +48,8 @@ Sizes are approximate and may change when Valve updates the dedicated-server con
 
 Each content pack can be selected independently when the installer starts.
 
+Depending on SteamCMD and the current installation state, a full validation/update check can take around **3–4 minutes**, even when most content is already present.
+
 ## How it works
 
 1. The installer finds Steam and Garry's Mod.
@@ -75,7 +77,7 @@ Current game directories:
 
 ## Log files
 
-Starting with v1.5.2 development builds, the installer asks at startup whether a GMCI log file should be created. Logging is disabled by default.
+Starting with v1.5.2, the installer asks at startup whether a GMCI log file should be created. Logging is disabled by default.
 
 When enabled, logs are stored directly inside the detected Garry's Mod installation:
 
@@ -120,7 +122,7 @@ The v1.5.x Windows builds are tested with both Counter-Strike: Source and Team F
 - Fresh SteamCMD download and self-update
 - CSS and TF2 SteamCMD downloads
 - Detection of already installed content followed by SteamCMD validation/update checks
-- Team Fortress 2 stale-manifest recovery after repeated SteamCMD `state is 0x6` failures
+- Team Fortress 2 stale-manifest recovery after the first matching SteamCMD `state is 0x6` failure
 - Automatic `mount.cfg` and `mountdepots.txt` updates
 - CSS and TF2 mounted simultaneously in Garry's Mod
 - Garry's Mod `path` output confirming both mounted game directories and VPKs
