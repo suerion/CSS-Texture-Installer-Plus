@@ -1,12 +1,6 @@
 const fs = require('fs-extra')
 const path = require('path')
 
-const appDirectory = path.dirname(
-    process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])
-)
-const logRoot = process.env.LOCALAPPDATA || appDirectory
-const logDirectory = path.join(logRoot, 'GMod-Content-Installer-Plus', 'logs')
-
 const pad = value => String(value).padStart(2, '0')
 const now = new Date()
 const fileStamp = [
@@ -19,8 +13,8 @@ const fileStamp = [
     pad(now.getSeconds())
 ].join('-')
 
-fs.ensureDirSync(logDirectory)
-const logPath = path.join(logDirectory, `gmci-${fileStamp}.log`)
+let logPath = null
+let bufferedEntries = []
 
 const stripAnsi = value => String(value)
     .replace(/\x1B\[[0-?]*[ -\/]*[@-~]/g, '')
@@ -31,16 +25,46 @@ const timestamp = () => {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
-const append = (level, message) => {
+const formatEntry = (level, message) => {
     const clean = stripAnsi(message).replace(/\n+$/g, '')
-    if (!clean) return
+    if (!clean) return ''
 
-    const lines = clean.split('\n')
-    const formatted = lines.map(line => `[${timestamp()}] [${level}] ${line}`).join('\n') + '\n'
+    return clean
+        .split('\n')
+        .map(line => `[${timestamp()}] [${level}] ${line}`)
+        .join('\n') + '\n'
+}
+
+const writeFormatted = formatted => {
+    if (!formatted) return
+
+    if (!logPath) {
+        bufferedEntries.push(formatted)
+        return
+    }
+
     fs.appendFileSync(logPath, formatted, 'utf8')
 }
 
+const append = (level, message) => {
+    writeFormatted(formatEntry(level, message))
+}
+
+const setGmodPath = gmodPath => {
+    const logDirectory = path.join(gmodPath, 'gmod-contenlog')
+    fs.ensureDirSync(logDirectory)
+    logPath = path.join(logDirectory, `gmci-${fileStamp}.log`)
+
+    if (bufferedEntries.length > 0) {
+        fs.appendFileSync(logPath, bufferedEntries.join(''), 'utf8')
+        bufferedEntries = []
+    }
+
+    return logPath
+}
+
 module.exports = {
+    setGmodPath,
     getPath: () => logPath,
     info: message => append('INFO', message),
     status: message => append('STATUS', message),
