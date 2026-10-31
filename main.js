@@ -198,6 +198,15 @@
 	console.log(chalk.magenta(`A utility for installing Valve game content into Garry's Mod ${chalk.blue('directly through SteamCMD')}.`))
 	console.log(chalk.hex('#7289DA')('Issues: https://github.com/suerion/CSS-Texture-Installer-Plus/issues'))
 
+	const logAnswer = await enquirer.prompt({
+		type: 'confirm',
+		name: 'enabled',
+		message: "Create a GMCI log file in the Garry's Mod folder?",
+		initial: false
+	})
+	const loggingEnabled = logAnswer.enabled
+	if (!loggingEnabled) logger.disable()
+
 	try {
 		progress.start('Verifying Steam directory...')
 		const steamPath = findSteamPath()
@@ -209,9 +218,11 @@
 			throw new Error(`Garry's Mod could not be found on your computer.`)
 		}
 		progress.succeed(`Garry's Mod installation directory found: ${gmodPath}`)
-		const logPath = logger.setGmodPath(gmodPath)
-		logger.info(`Log file: ${logPath}`)
-		console.log(chalk.gray(`Log file: ${logPath}`))
+		if (loggingEnabled) {
+			const logPath = logger.enable(gmodPath)
+			logger.info(`Log file: ${logPath}`)
+			console.log(chalk.gray(`Log file: ${logPath}`))
+		}
 
 		const selectedPacks = await selectPacks()
 		logger.info(`Selected content packs: ${selectedPacks.map(pack => `${pack.name} (${pack.appId})`).join(', ') || 'none'}.`)
