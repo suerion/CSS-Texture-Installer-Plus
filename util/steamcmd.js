@@ -3,6 +3,7 @@ const fs = require('fs-extra')
 const { spawn } = require('child_process')
 const axios = require('axios')
 const pathUtils = require('path')
+const logger = require('./logger')
 const appDirectory = pathUtils.dirname(process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])).replace(/\\/g, '/')
 
 module.exports = {
@@ -104,7 +105,9 @@ module.exports = {
 
                 process.on('exit', (event) => {
                     const exitCode = typeof event === 'number' ? event : event && event.exitCode
-                    resolve(exitCode === undefined ? 0 : exitCode)
+                    const normalizedExitCode = exitCode === undefined ? 0 : exitCode
+                    logger.info(`SteamCMD initialization exited with code ${normalizedExitCode}.`)
+                    resolve(normalizedExitCode)
                 })
             })
         }
@@ -148,6 +151,8 @@ module.exports = {
                 }
 
                 process.on('data', (output) => {
+                    logger.steamcmd(output)
+
                     if (output.includes('Update state')) {
                         const codeMatch = output.match(/Update state\s+\((0x[0-9a-f]+)\)/i)
                         const progressMatch = output.match(/progress:\s*([0-9]+(?:\.[0-9]+)?)/i)
@@ -174,9 +179,11 @@ module.exports = {
 
                 process.on('exit', (event) => {
                     const exitCode = typeof event === 'number' ? event : event && event.exitCode
+                    const normalizedExitCode = exitCode === undefined ? 0 : exitCode
+                    logger.info(`SteamCMD app ${appID} exited with code ${normalizedExitCode}; installed=${installed}; lastError=${lastError || 'none'}.`)
                     resolve({
                         installed,
-                        exitCode: exitCode === undefined ? 0 : exitCode,
+                        exitCode: normalizedExitCode,
                         lastError
                     })
                 })
@@ -230,9 +237,11 @@ module.exports = {
 
                     if (!fs.existsSync(backupPath)) {
                         fs.copyFileSync(manifestPath, backupPath)
+                        logger.info(`Backed up stale TF2 manifest to ${backupPath}.`)
                     }
 
                     fs.removeSync(manifestPath)
+                    logger.info(`Removed stale TF2 manifest ${manifestPath} before metadata refresh.`)
 
                     const refreshResult = await runDownload()
                     if (refreshResult.installed && refreshResult.exitCode === 0) {
@@ -246,6 +255,7 @@ module.exports = {
 
                     if (!fs.existsSync(manifestPath) && fs.existsSync(backupPath)) {
                         fs.copyFileSync(backupPath, manifestPath)
+                        logger.info(`Restored original TF2 manifest from ${backupPath}.`)
                     }
 
                     const refreshDetail = refreshResult.lastError ? `: ${refreshResult.lastError}` : ''
