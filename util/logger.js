@@ -4,7 +4,8 @@ const path = require('path')
 const appDirectory = path.dirname(
     process.pkg ? process.execPath : (require.main ? require.main.filename : process.argv[0])
 )
-const logDirectory = path.join(appDirectory, 'logs')
+const logRoot = process.env.LOCALAPPDATA || appDirectory
+const logDirectory = path.join(logRoot, 'GMod-Content-Installer-Plus', 'logs')
 
 const pad = value => String(value).padStart(2, '0')
 const now = new Date()
