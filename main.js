@@ -192,7 +192,7 @@
 		font: 'Slant2',
 		horizontalLayout: 'fitted',
 		verticalLayout: 'fitted'
-	}) + chalk.blueBright('v1.5.2 AI-generated development')))
+	}) + chalk.blueBright('v1.5.2 AI-generated release')))
 
 	logger.info('GMCI+ v1.5.2 session started.')
 	console.log(chalk.magenta(`A utility for installing Valve game content into Garry's Mod ${chalk.blue('directly through SteamCMD')}.`))
