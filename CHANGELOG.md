@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.5.2 - AI-generated development update
+
+### Added
+- Optional per-session GMCI log files with installer status messages and raw SteamCMD output.
+- Log files are stored under the detected Garry's Mod installation in `gmod-contenlog/`.
+- Startup prompt to enable or disable logging; logging is disabled by default.
+- Runtime logger tests in CI to catch logger API mismatches before shipping a build.
+- README documentation for project origin, direct links, future development, logging and antivirus false-positive guidance.
+
+### Changed
+- Team Fortress 2 stale-manifest recovery now starts immediately after the first matching transient `state is 0x6` / exit-code-8 failure when the local app manifest exists.
+- TF2 no longer waits through three 30-second retry cycles before refreshing stale local metadata.
+- Installer development branding updated to v1.5.2.
+
+### Fixed
+- Logger initialization and optional logging API are kept consistent between `main.js` and `util/logger.js`.
+- Log files are no longer written to AppData; when enabled they are created directly inside the detected Garry's Mod folder.
+- SteamCMD progress parsing remains clamped to 0–100%.
+
+### Notes
+- SteamCMD can still spend about two minutes waiting internally before reporting `Timed out waiting for update to start, bailing.` for an already installed app. This delay comes from SteamCMD itself, not from GMCI logging.
+
 ## v1.5.1 - AI-generated maintenance update
 
 ### Fixed
