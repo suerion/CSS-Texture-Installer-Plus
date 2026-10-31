@@ -57,7 +57,7 @@ Each content pack can be selected independently when the installer starts.
 5. SteamCMD downloads updates or repairs missing/corrupt files only when needed.
 6. SteamCMD first-run self-updates and transient cache initialization are handled automatically.
 7. The installer can recover from stale Team Fortress 2 SteamCMD metadata by backing up and refreshing the local app manifest when repeated update attempts fail.
-8. The installer writes a session log containing installer status messages and SteamCMD output to help diagnose problems.
+8. The installer can optionally write a session log containing installer status messages and SteamCMD output to help diagnose problems.
 9. The installer safely updates:
    - `GarrysMod/garrysmod/cfg/mount.cfg`
    - `GarrysMod/garrysmod/cfg/mountdepots.txt`
@@ -75,15 +75,31 @@ Current game directories:
 
 ## Log files
 
-Starting with v1.5.2 development builds, each installer run creates its own log file.
+Starting with v1.5.2 development builds, the installer asks at startup whether a GMCI log file should be created. Logging is disabled by default.
 
-Logs are stored under:
+When enabled, logs are stored directly inside the detected Garry's Mod installation:
 
-`%LOCALAPPDATA%/GMod-Content-Installer-Plus/logs/`
+`GarrysMod/gmod-contenlog/`
 
-The installer prints the exact log path when it starts.
+The installer prints the exact log path after Garry's Mod has been found.
 
 The session log includes normal installer status messages as well as SteamCMD output, including retry information, update states, manifest-related errors and metadata recovery actions. This should make troubleshooting easier without having to collect several separate SteamCMD log files.
+
+## Antivirus / false-positive notes
+
+The Windows executable is built as a packaged Node.js application and is currently unsigned. It also launches SteamCMD, uses PowerShell to extract SteamCMD, accesses the Windows registry to locate Steam, and writes into the Garry's Mod installation. These behaviors can trigger heuristic antivirus detections on newly built binaries.
+
+During development, Microsoft Defender has flagged a GitHub Actions build as `Trojan:Win32/Sabsik.EN.D!ml`. This is a machine-learning based detection and can be a false positive, but users should still treat antivirus warnings seriously.
+
+Recommended verification steps:
+
+- download builds only from this repository's GitHub Actions or Releases
+- compare the published SHA-256 hash when one is provided
+- do not disable antivirus protection globally
+- do not add broad exclusions such as the entire Downloads folder
+- report unexpected detections through the repository Issues page
+
+A future code-signing setup may reduce false-positive detections.
 
 ## Configuration safety
 
