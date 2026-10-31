@@ -56,7 +56,7 @@ Each content pack can be selected independently when the installer starts.
 4. Every selected content pack is then checked through SteamCMD with `app_update ... -validate`, even when local files already exist.
 5. SteamCMD downloads updates or repairs missing/corrupt files only when needed.
 6. SteamCMD first-run self-updates and transient cache initialization are handled automatically.
-7. The installer can recover from stale Team Fortress 2 SteamCMD metadata by backing up and refreshing the local app manifest when repeated update attempts fail.
+7. The installer can recover from stale Team Fortress 2 SteamCMD metadata by backing up and refreshing the local app manifest immediately after the first matching transient update failure.
 8. The installer can optionally write a session log containing installer status messages and SteamCMD output to help diagnose problems.
 9. The installer safely updates:
    - `GarrysMod/garrysmod/cfg/mount.cfg`
