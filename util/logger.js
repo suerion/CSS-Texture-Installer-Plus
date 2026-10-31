@@ -15,6 +15,7 @@ const fileStamp = [
 
 let logPath = null
 let bufferedEntries = []
+let loggingState = 'pending'
 
 const stripAnsi = value => String(value)
     .replace(/\x1B\[[0-?]*[ -\/]*[@-~]/g, '')
@@ -36,9 +37,9 @@ const formatEntry = (level, message) => {
 }
 
 const writeFormatted = formatted => {
-    if (!formatted) return
+    if (!formatted || loggingState === 'disabled') return
 
-    if (!logPath) {
+    if (loggingState === 'pending' || !logPath) {
         bufferedEntries.push(formatted)
         return
     }
@@ -50,10 +51,11 @@ const append = (level, message) => {
     writeFormatted(formatEntry(level, message))
 }
 
-const setGmodPath = gmodPath => {
+const enable = gmodPath => {
     const logDirectory = path.join(gmodPath, 'gmod-contenlog')
     fs.ensureDirSync(logDirectory)
     logPath = path.join(logDirectory, `gmci-${fileStamp}.log`)
+    loggingState = 'enabled'
 
     if (bufferedEntries.length > 0) {
         fs.appendFileSync(logPath, bufferedEntries.join(''), 'utf8')
@@ -63,8 +65,16 @@ const setGmodPath = gmodPath => {
     return logPath
 }
 
+const disable = () => {
+    loggingState = 'disabled'
+    logPath = null
+    bufferedEntries = []
+}
+
 module.exports = {
-    setGmodPath,
+    enable,
+    disable,
+    isEnabled: () => loggingState === 'enabled',
     getPath: () => logPath,
     info: message => append('INFO', message),
     status: message => append('STATUS', message),
